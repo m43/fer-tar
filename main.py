@@ -1,9 +1,8 @@
-import ds_load
+import dataset
 
-DS_PATH = './dataset/essays.csv'
 
 if __name__ == '__main__':
-    dataset = ds_load.load_dataset(DS_PATH)
+    dataset = dataset.load_dataset()
     print("Personality Trait Classification on Essays")
     print("Text Analysis and Retrieval, 2021")
     print("FER, University of Zagreb, Croatia")

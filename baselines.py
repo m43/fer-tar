@@ -1,20 +1,45 @@
-import ds_load
+from abc import abstractmethod, ABC
+
+import numpy as np
+
+import dataset
 import eval
-import random
+from utils import setup_torch_reproducibility
 
 
-class MFCBaseline:
+class Classifier(ABC):
     """
-    Majority class classifier
+    Abstract class that models a big5 traits classifier.
+    The classifier can be trained on a given document set
+    and can predict the trait of a given text.
     """
-    def __init__(self):
-        self.labels = None
 
+    @abstractmethod
     def train(self, dataset):
         """
         :param dataset: the dataset; list[list[str, str, bool, bool, bool, bool, bool]]
         :return: returns nothing
         """
+        pass
+
+    @abstractmethod
+    def classify(self, example):
+        """
+        :param example: text to be classified; string
+        :return: predicted labels; list[bool]
+        """
+        pass
+
+
+class MCCBaseline(Classifier):
+    """
+    Majority class classifier
+    """
+
+    def __init__(self):
+        self.labels = None
+
+    def train(self, dataset):
         count_true = [0, 0, 0, 0, 0]
         for i in range(len(dataset)):
             for j in range(5):
@@ -22,31 +47,32 @@ class MFCBaseline:
         self.labels = [count > len(dataset) / 2 for count in count_true]
 
     def classify(self, example):
-        """
-        :param example: text to be classified; string
-        :return: predicted labels; list[bool]
-        """
         return self.labels
 
 
-class RandomBaseline:
+class RandomBaseline(Classifier):
+    """
+    Random class classifier
+    """
+
     def train(self, dataset):
         pass
 
     def classify(self, example):
-        return [random.random() > 0.5 for i in range(5)]
+        return [np.random.random() > 0.5 for _ in range(5)]
 
 
 if __name__ == '__main__':
-    ds = ds_load.load_dataset('./dataset/essays.csv')
+    setup_torch_reproducibility(72)
+    ds = dataset.load_dataset()
 
-    # ~~~~ MFCBaseline ~~~~ #
-    model = MFCBaseline()
+    # ~~~~ MCCBaseline ~~~~ #
+    model = MCCBaseline()
     model.train(ds)
     for ex in ds:
         label = model.classify(ex[2])
 
-    print("MFCBaseline:")
+    print("MCCBaseline:")
     scores = eval.eval(model, ds)
     for k in scores.keys():
         print(scores[k])
