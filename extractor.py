@@ -1,4 +1,5 @@
 from abc import abstractmethod, ABC
+import torch
 
 class FeatureExtractor(ABC):
     @abstractmethod
@@ -40,7 +41,10 @@ class ProlongingVowelsExtractor(FeatureExtractor):
 
 class WordCountExtractor(FeatureExtractor):
     def extract(self, dataset):
-        pass
+        lens = torch.tensor([[1. * len(example[1].split())] for example in dataset])
+        shifted = lens - torch.mean(lens)
+        scaled = shifted / torch.sqrt(torch.var(lens))
+        return scaled
 
 class CompositeExtractor(FeatureExtractor):
 
