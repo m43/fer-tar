@@ -35,9 +35,24 @@ class CapitalizationExtractor(FeatureExtractor):
     def extract(self, dataset):
         pass
 
-class ProlongingVowelsExtractor(FeatureExtractor):
+
+class RepeatingLettersExtractor(FeatureExtractor):
     def extract(self, dataset):
-        pass
+        values = []
+        for example in dataset:
+            text = example[1].lower()
+            values.append([0])
+            count_reps = 1
+            for i in range(1, len(text)):
+                if (not text[i].isalpha()) or (text[i] != text[i-1]):
+                    if count_reps > 2:
+                        values[-1][0] += count_reps
+                    count_reps = 1
+                else:
+                    count_reps += 1
+            values[-1][0] *= 1.0
+        return torch.tensor(values)
+
 
 class WordCountExtractor(FeatureExtractor):
     def extract(self, dataset):
