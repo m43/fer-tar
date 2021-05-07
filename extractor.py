@@ -61,10 +61,14 @@ class WordCountExtractor(FeatureExtractor):
         scaled = shifted / torch.sqrt(torch.var(lens))
         return scaled
 
+
 class CompositeExtractor(FeatureExtractor):
 
     def __init__(self, extractors):
         self.extractors = extractors
 
     def extract(self, dataset):
-        pass
+        features = self.extractors[0].extract(dataset)
+        for i in range(1, len(self.extractors)):
+            features = torch.cat((features, self.extractors[i].extract(dataset)), dim=1)
+        return features
