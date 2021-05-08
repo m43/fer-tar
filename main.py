@@ -15,7 +15,6 @@ if __name__ == '__main__':
 
     # ~~~~ Config ~~~~ #
     n_runs = 10  # How many times will each model be run, used to calculate std. dev.
-    reload_dataset = False  # Should the dataset be shuffled after each run
     seed = 72  # Initial seed, used to setup reproducibility
     time_str = get_str_formatted_time()  # string time identifier
     test_split_ratio, val_split_ratio = 0.2, 0
@@ -37,8 +36,6 @@ if __name__ == '__main__':
     results = {clf_name: {} for clf_name, clf in classifiers}
     for i in range(n_runs):
         print(f"i::[{i + 1}/{n_runs}] started")
-        if reload_dataset:
-            train, _, test = split_dataset(dataset, test_split_ratio, val_split_ratio)
         for clf_name, clf in classifiers:
             print(f"Classifier: {clf_name}")
             clf.train(train)  # TODO should the be explicitly reinitialized (weights to be randomly picked again)?
