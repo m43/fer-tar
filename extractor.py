@@ -47,7 +47,7 @@ class InterpunctionExtractor(FeatureExtractor):
         """
         counts_per_person = []
         for _, text, _, _, _, _, _ in dataset:
-            punct_count = torch.tensor([0, 0, 0])
+            punct_count = torch.tensor([0.0, 0.0, 0.0])
             for c in text:
                 for i in range(len(punct)):
                     if c == punct[i]:
@@ -57,6 +57,30 @@ class InterpunctionExtractor(FeatureExtractor):
         # Total number of sentences?
         return torch.stack(counts_per_person)
 
+class InterpunctionNormalizedBySentences(FeatureExtractor):
+    def extract(self, dataset):
+        int_ext = InterpunctionExtractor()
+        counts_per_person = int_ext.extract(dataset)
+
+        for i, entry in enumerate(dataset):
+            sentences = re.split(RE_PUNCT, entry[1])
+            sentences = [s for s in sentences if s]
+            counts_per_person[i] /= len(sentences)
+
+        return counts_per_person
+
+class InterpunctionNormalizedByOccurence(FeatureExtractor):
+    def extract(self, dataset):
+        int_ext = InterpunctionExtractor()
+        counts_per_person = int_ext.extract(dataset)
+
+        for i in range(len(dataset)):
+            sum = torch.sum(counts_per_person[i], 0)
+            if sum > 0:
+                for j in range(len(counts_per_person[i])):
+                    counts_per_person[i, j] /= sum
+
+        return counts_per_person
 
 class CapitalizationExtractor(FeatureExtractor):
     def extract(self, dataset):
@@ -76,6 +100,7 @@ class CapitalizationExtractor(FeatureExtractor):
             sentences = [s for s in sentences if s]  # consider only non empty sentences
             cap_per_person[i] /= len(sentences)  # normalize capitalization with the number of sentences
         return cap_per_person
+
 
 
 class ProlongingVowelsExtractor(FeatureExtractor):
