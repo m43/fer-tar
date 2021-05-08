@@ -1,6 +1,7 @@
 import os
-import random
 import re
+
+import torch
 
 from utils import project_path
 
@@ -20,7 +21,7 @@ def load_dataset():
     all file entries. A entry consists of 7 attributes which are: author, text and bool flags for extroversion,
     neuroticism, agreeableness, conscientiousness, openness.
 
-    :return: list containing list of dataset entries: list[list[string, string, bool, bool, bool, bool, bool]]
+    :return: (x, y); (list[string], torch.tensor)
     """
     dataset = []
     # loading does not work with 'utf8' for some reason
@@ -41,49 +42,52 @@ def load_dataset():
             if text.startswith('"') and text.endswith('"'):
                 text = text[1:-1]
             dataset.append([author, text, c_ext, c_neu, c_agr, c_con, c_opn])
-    return dataset
+
+    x = [line[1] for line in dataset]
+    y = torch.tensor([line[2:] for line in dataset], dtype=torch.float32)
+    return x, y
 
 
-def split_dataset(dataset, test_ratio=0.2, valid_ratio=0.2):
+def split_dataset(x, y, test_ratio=0.2, valid_ratio=0.2):
     """
     Function for randomly splitting the dataset into train, valid and test sets with given ratios.
-    A copy of the dataset is created and shuffled. If valid_ratio == 0.0, an empty valid subset will
-    be returned.
+    The dataset is shuffled randomly. If valid_ratio == 0.0, an empty valid subset will be returned.
 
-    :param dataset: the dataset to split; list[list[string, string, bool, bool, bool, bool, bool]]
+    :param x: list of essays; list[string]
+    :param y: torch tensor with targets; torch.tensor(n,5)
     :param test_ratio: the ratio of datapoints in the test subset after the split; float
     :param valid_ratio: the ratio of datapoints in the valid subset after the split; float
-    :return: Tuple like (train, valid, test); tuple[list[string, string, bool, bool, bool, bool, bool]]
+    :return: the subsets like (train_x, train_y), (val_x, val_y), (test_x, test_y);
+             tuple(tuple(list[string],torch.tensor))
     """
-    dataset = dataset.copy()
-    random.shuffle(dataset)
+    shuffle_indices = torch.randperm(y.shape[0])
+    _, x = zip(*sorted(zip(shuffle_indices, x)))
+    y = y[shuffle_indices]
 
-    n = len(dataset)
+    n = len(x)
     n_val, n_test = int(valid_ratio * n), int(test_ratio * n)
     n_train = n - n_val - n_test
 
-    train_subset, val_subset, test_subset = dataset[0:n_train], dataset[n_train:n_train + n_val], dataset[
-                                                                                                  n_train + n_val:]
-    return train_subset, val_subset, test_subset
+    train_x, val_x, test_x = x[0:n_train], x[n_train:n_train + n_val], x[n_train + n_val:]
+    train_y, val_y, test_y = y[0:n_train], y[n_train:n_train + n_val], y[n_train + n_val:]
+    return (train_x, train_y), (val_x, val_y), (test_x, test_y)
 
 
 if __name__ == '__main__':
-    dataset = load_dataset()
-    assert len(dataset) == 2467
-    assert len(dataset[0]) == 7
-    assert dataset[0][2:] == [False, True, True, False, True]
+    x, y = load_dataset()
+    assert len(x) == len(y) == 2467
+    assert len(y[0]) == 5
+    assert (y[0] == torch.tensor([0., 1., 1., 0., 1.])).all()
 
-    n = len(dataset)
-    first_datum = dataset[0]
-    train, val, test = split_dataset(dataset, 0.2, 0)
-    assert (first_datum == dataset[0])  # assert that the original dataset was (probably) not shuffled
-    assert (first_datum != train[0])
-    assert (len(test) == int(0.2 * len(dataset)))
-    assert (len(val) == 0)
-    assert (n == len(train) + len(val) + len(test))
+    n = len(x)
+    first_datum = x[0], y[0]
+    (train_x, train_y), (val_x, val_y), (test_x, test_y) = split_dataset(x, y, 0.2, 0)
+    assert first_datum[0] == x[0] and (first_datum[1] == y[0]).all()  # assert that original dataset was not shuffled
+    assert len(test_x) == int(0.2 * len(x))
+    assert len(val_x) == 0
+    assert n == len(train_x) + len(val_x) + len(test_x) == len(train_y) + len(val_y) + len(test_y)
 
-    train, val, test = split_dataset(dataset, 0.2, 0.2)
-    assert (first_datum != train[0])
-    assert (len(test) == int(0.2 * len(dataset)))
-    assert (len(val) == int(0.2 * len(dataset)))
-    assert (n == len(train) + len(val) + len(test))
+    (train_x, train_y), (val_x, val_y), (test_x, test_y) = split_dataset(x, y, 0.3, 0.3)
+    assert len(test_x) == int(0.3 * len(x))
+    assert len(val_x) == int(0.3 * len(x))
+    assert n == len(train_x) + len(val_x) + len(test_x) == len(train_y) + len(val_y) + len(test_y)

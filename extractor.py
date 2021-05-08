@@ -8,53 +8,70 @@ RE_PUNCT = r'[?.!]'
 
 
 class FeatureExtractor(ABC):
+    """
+    Abstract class to model features extractors
+    """
+
     @abstractmethod
-    def extract(self, dataset):
+    def extract(self, x):
+        """
+        Extracts features from given essays.
+
+        :param x: a list of essays; list[str]
+        :return: a tensor containing the extracted features; torch.tensor
+        """
         pass
 
 
 class DummyExtractor(FeatureExtractor):
-    def extract(self, dataset):
-        return torch.randn((len(dataset), 30))
+    """
+    Dummy feature extractor that returns random vectors of given dimensionality
+    """
+
+    def __init__(self, dim=100):
+        self.dim = dim
+
+    def extract(self, x):
+        return torch.randn((len(x), self.dim))
 
 
 class BOWExtractor(FeatureExtractor):
-    def __init__(self, dataset):
+    def __init__(self, x):
         pass
 
-    def extract(self, dataset):
+    def extract(self, x):
         # list[list[str,str,bool...]]
         # list[np.array]
-        pass
+        return torch.zeros((len(x), 1))
 
 
 class W2VExtractor(FeatureExtractor):
-    def extract(self, dataset):
-        pass
+    def extract(self, x):
+        return torch.zeros((len(x), 1))
 
 
 class S2VExtractor(FeatureExtractor):
-    def extract(self, dataset):
-        pass
+    def extract(self, x):
+        return torch.zeros((len(x), 1))
 
 
 class D2VExtractor(FeatureExtractor):
-    def extract(self, dataset):
-        pass
+    def extract(self, x):
+        return torch.zeros((len(x), 1))
 
 
 class InterpunctionExtractor(FeatureExtractor):
 
-    def extract(self, dataset):
+    def extract(self, x):
         """
         Extracts interpunction counts for each input entry.
 
-        :param dataset: the dataset from which the features are to be extracted
-        :return: a tensor of shape len(dataset) x 3 containing extracted interpunction features: tensor
+        :param x: a list of essays; list[str]
+        :return: a tensor of shape (len(dataset),len(punct)) containing extracted interpunction features; tensor
         """
         counts_per_person = []
-        for _, text, _, _, _, _, _ in dataset:
-            punct_count = torch.tensor([0.0, 0.0, 0.0])
+        for text in x:
+            punct_count = torch.zeros(len(punct))
             for c in text:
                 for i in range(len(punct)):
                     if c == punct[i]:
@@ -66,12 +83,12 @@ class InterpunctionExtractor(FeatureExtractor):
 
 
 class InterpunctionNormalizedBySentences(FeatureExtractor):
-    def extract(self, dataset):
+    def extract(self, x):
         int_ext = InterpunctionExtractor()
-        counts_per_person = int_ext.extract(dataset)
+        counts_per_person = int_ext.extract(x)
 
-        for i, entry in enumerate(dataset):
-            sentences = re.split(RE_PUNCT, entry[1])
+        for i, xi in enumerate(x):
+            sentences = re.split(RE_PUNCT, xi)
             sentences = [s for s in sentences if s]
             counts_per_person[i] /= len(sentences)
 
@@ -79,11 +96,11 @@ class InterpunctionNormalizedBySentences(FeatureExtractor):
 
 
 class InterpunctionNormalizedByOccurence(FeatureExtractor):
-    def extract(self, dataset):
+    def extract(self, x):
         int_ext = InterpunctionExtractor()
-        counts_per_person = int_ext.extract(dataset)
+        counts_per_person = int_ext.extract(x)
 
-        for i in range(len(dataset)):
+        for i in range(len(x)):
             sum = torch.sum(counts_per_person[i], 0)
             if sum > 0:
                 for j in range(len(counts_per_person[i])):
@@ -97,13 +114,13 @@ class CapitalizationExtractor(FeatureExtractor):
         """
         Extracts capitalization counts relative to number of sentences for each input entry.
 
-        :param dataset: the dataset from which the features are to be extracted
-        :return: a tensor of shape len(dataset) x 1 containing extracted capitalization features: tensor[int...]
+        :param x: a list of essays; list[str]
+        :return: a tensor of shape (len(dataset),1) containing extracted capitalization features; torch.tensor[float]
         """
-        cap_per_person = torch.zeros((len(dataset), 1))
+        cap_per_person = torch.zeros((len(dataset), 1), dtype=torch.float32)
 
         for i, entry in enumerate(dataset):
-            for c in entry[1]:
+            for c in entry:
                 if c.isupper():
                     cap_per_person[i] += 1
             sentences = re.split(RE_PUNCT, entry[1])
@@ -113,10 +130,10 @@ class CapitalizationExtractor(FeatureExtractor):
 
 
 class RepeatingLettersExtractor(FeatureExtractor):
-    def extract(self, dataset):
+    def extract(self, x):
         values = []
-        for example in dataset:
-            text = example[1].lower()
+        for example in x:
+            text = example.lower()
             values.append([0])
             count_reps = 1
             for i in range(1, len(text)):
@@ -126,18 +143,17 @@ class RepeatingLettersExtractor(FeatureExtractor):
                     count_reps = 1
                 else:
                     count_reps += 1
-            values[-1][0] *= 1.0
-        return torch.tensor(values)
+        return torch.tensor(values, dtype=torch.float32)
 
 
 class WordCountExtractor(FeatureExtractor):
-    def __init__(self, dataset):
-        lens = torch.tensor([[1. * len(example[1].split())] for example in dataset])
+    def __init__(self, x):
+        lens = torch.tensor([[1. * len(example.split())] for example in x])
         self.mean = torch.mean(lens)
         self.stddev = torch.sqrt(torch.var(lens))
 
-    def extract(self, dataset):
-        lens = torch.tensor([[1. * len(example[1].split())] for example in dataset])
+    def extract(self, x):
+        lens = torch.tensor([[1. * len(example.split())] for example in x])
         return (lens - self.mean) / self.stddev
 
 
@@ -146,8 +162,39 @@ class CompositeExtractor(FeatureExtractor):
     def __init__(self, extractors):
         self.extractors = extractors
 
-    def extract(self, dataset):
-        features = self.extractors[0].extract(dataset)
+    def extract(self, x):
+        features = self.extractors[0].extract(x)
         for i in range(1, len(self.extractors)):
-            features = torch.cat((features, self.extractors[i].extract(dataset)), dim=1)
+            features = torch.cat((features, self.extractors[i].extract(x)), dim=1)
         return features
+
+
+if __name__ == '__main__':
+    train_x = ["Četrnaest palmi na otoku sreće Žalo po kojem se valja val", "no interpunction", "CAPITAL", "lower",
+               "12345",
+               "/.,/.,/.,", "?!.", "This is a noooooormal sentence."]
+    test_x = ["Četrnaest palmi"]
+
+    extractors = [
+        DummyExtractor(),
+        DummyExtractor(10),
+        BOWExtractor(train_x),
+        W2VExtractor(),
+        S2VExtractor(),
+        D2VExtractor(),
+        InterpunctionExtractor(),
+        InterpunctionNormalizedBySentences(),
+        InterpunctionNormalizedByOccurence(),
+        CapitalizationExtractor(),
+        RepeatingLettersExtractor(),
+        WordCountExtractor(train_x)
+    ]
+    extractors += [CompositeExtractor(tuple(extractors))]
+
+    for e in extractors:
+        print(f"Extractor {e.__class__.__name__} -- TRAIN:")
+        print(e.extract(train_x))
+        print(f"Extractor {e.__class__.__name__} -- TEST:")
+        print(e.extract(test_x))
+
+    # TODO there are some nan's and inf's in the output, but these are probably edge cases.

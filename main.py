@@ -28,8 +28,8 @@ if __name__ == '__main__':
     # ~~~~ Setup ~~~~ #
     device = setup_torch_device()
     setup_torch_reproducibility(seed)
-    dataset = load_dataset()
-    train, _, test = split_dataset(dataset, test_split_ratio, val_split_ratio)
+    x, y = load_dataset()
+    (train_x, train_y), (val_x, val_y), (test_x, test_y) = split_dataset(x, y, test_split_ratio, val_split_ratio)
 
     # ~~~~ Collect results ~~~~ #
     print("Collecting results")
@@ -38,11 +38,12 @@ if __name__ == '__main__':
         print(f"i::[{i + 1}/{n_runs}] started")
         for clf_name, clf in classifiers:
             print(f"Classifier: {clf_name}")
-            clf.train(train)  # TODO should the be explicitly reinitialized (weights to be randomly picked again)?
-            for subset_name, subset in ("train", train), ("test", test):  # ("val", val)
+            clf.train(train_x,
+                      train_y)  # TODO should the be explicitly reinitialized (weights to be randomly picked again)?
+            for subset_name, subset in ("train", (train_x, train_y)), ("test", (test_x, test_y)):  # ("val", val)
                 if subset_name not in results[clf_name]:
                     results[clf_name][subset_name] = {}
-                eval_results = eval(clf, subset)
+                eval_results = eval(clf, *subset)
                 for trait_name in TRAITS:
                     if trait_name not in results[clf_name][subset_name]:
                         results[clf_name][subset_name][trait_name] = {}
