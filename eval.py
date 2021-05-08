@@ -21,7 +21,7 @@ def eval(classifier, dataset):
     # ~~~~~~~~~~~~~~~ GET PREDICTIONS ~~~~~~~~~~~~~~~ #
     preds = []
     for ex in dataset:
-        preds.append(classifier.classify(ex[2]))
+        preds.append(classifier.classify(ex[1]))
 
     # ~~~~~~~~~~ COMPUTE CONFUSION MATRIX ~~~~~~~~~~~ #
     counts = [
