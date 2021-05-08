@@ -45,6 +45,16 @@ def load_dataset():
 
 
 def split_dataset(dataset, test_ratio=0.2, valid_ratio=0.2):
+    """
+    Function for randomly splitting the dataset into train, valid and test sets with given ratios.
+    A copy of the dataset is created and shuffled. If valid_ratio == 0.0, an empty valid subset will
+    be returned.
+
+    :param dataset: the dataset to split; list[list[string, string, bool, bool, bool, bool, bool]]
+    :param test_ratio: the ratio of datapoints in the test subset after the split; float
+    :param valid_ratio: the ratio of datapoints in the valid subset after the split; float
+    :return: Tuple like (train, valid, test); tuple[list[string, string, bool, bool, bool, bool, bool]]
+    """
     dataset = dataset.copy()
     random.shuffle(dataset)
 

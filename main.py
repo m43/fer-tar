@@ -3,9 +3,8 @@ import pprint
 
 import numpy as np
 
-import dataset
 from baselines import RandomBaseline, MCCBaseline
-from dataset import split_dataset, TRAITS
+from dataset import load_dataset, split_dataset, TRAITS
 from eval import eval
 from utils import setup_torch_reproducibility, setup_torch_device, project_path, get_str_formatted_time, ensure_dir
 
@@ -30,14 +29,14 @@ if __name__ == '__main__':
     # ~~~~ Setup ~~~~ #
     device = setup_torch_device()
     setup_torch_reproducibility(seed)
-    dataset = dataset.load_dataset()
+    dataset = load_dataset()
     train, _, test = split_dataset(dataset, test_split_ratio, val_split_ratio)
 
     # ~~~~ Collect results ~~~~ #
     print("Collecting results")
     results = {clf_name: {} for clf_name, clf in classifiers}
     for i in range(n_runs):
-        print(f"i::{i}")
+        print(f"i::[{i + 1}/{n_runs}] started")
         if reload_dataset:
             train, _, test = split_dataset(dataset, test_split_ratio, val_split_ratio)
         for clf_name, clf in classifiers:
@@ -54,7 +53,7 @@ if __name__ == '__main__':
                         r = results[clf_name][subset_name][trait_name].get(metric_name, [])
                         e = eval_results[trait_name][metric_name]
                         results[clf_name][subset_name][trait_name][metric_name] = r + [e]
-        print(f"i::{i} current results: {results}")
+        print(f"i::[{i + 1}/{n_runs}] current results: {results}\n\n")
 
     metric_names = results[clf_name][subset_name][TRAITS[0]]
     for clf_name, clf in classifiers:
@@ -62,7 +61,7 @@ if __name__ == '__main__':
             for trait_name in TRAITS:
                 for metric_name in metric_names:
                     r = results[clf_name][subset_name][trait_name][metric_name]
-                    mean, std = np.mean(np.array(r, np.float)), np.std(np.array(r, np.float))
+                    mean, std = np.mean(np.array(r, np.float64)), np.std(np.array(r, np.float64))
                     results[clf_name][subset_name][trait_name][metric_name] = (mean, std)
 
     print("Results collected")
@@ -107,7 +106,8 @@ spreadsheet editor. My favorite is Google Sheets, as all
 of us can collaborate, paste local results and visualize
 them. I open the csv in LibreOffice Calc, copy the content
 and paste it into Google Sheets. Here is a google sheets
-document that I shared with you: https://cutt.ly/wbUjfdt
+document that I've shared with you: https://cutt.ly/wbUjfdt
+
 Local csv path:
 {results_csv}
 Local txt path:
