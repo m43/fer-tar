@@ -1,9 +1,16 @@
 from abc import abstractmethod, ABC
 
+import torch
+
+
 class FeatureExtractor(ABC):
     @abstractmethod
     def extract(self, dataset):
         pass
+
+class DummyExtractor(FeatureExtractor):
+    def extract(self, dataset):
+        return torch.randn((len(dataset), 30))
 
 class BOWExtractor(FeatureExtractor):
     def __init__(self, dataset):
