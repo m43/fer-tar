@@ -25,12 +25,12 @@ def eval(classifier, dataset):
 
     # ~~~~~~~~~~ COMPUTE CONFUSION MATRIX ~~~~~~~~~~~ #
     counts = [
-        #TP FP FN TN
-        [0, 0, 0, 0],   # extroversion
-        [0, 0, 0, 0],   # neuroticism
-        [0, 0, 0, 0],   # agreeableness
-        [0, 0, 0, 0],   # conscientiousness
-        [0, 0, 0, 0]    # openness
+        # TP FP FN TN
+        [0, 0, 0, 0],  # extroversion
+        [0, 0, 0, 0],  # neuroticism
+        [0, 0, 0, 0],  # agreeableness
+        [0, 0, 0, 0],  # conscientiousness
+        [0, 0, 0, 0]  # openness
     ]
     for i_ex in range(len(preds)):
         true_lab = dataset[i_ex][2:]
@@ -48,13 +48,16 @@ def eval(classifier, dataset):
                     counts[i_tr][TN] += 1
 
     # ~~~~~~~~~ COMPUTE EVALUATION METRICS ~~~~~~~~~~ #
-    scores = {}
+    scores = {trait: {} for trait in TRAITS}
     for i, trait_counts in enumerate(counts):
         acc = (trait_counts[TP] + trait_counts[TN]) / len(dataset)
         pre_denom = trait_counts[TP] + trait_counts[FP]
         rec_denom = trait_counts[TP] + trait_counts[FN]
         pre = trait_counts[TP] / pre_denom if pre_denom != 0 else None
         rec = trait_counts[TP] / rec_denom if rec_denom != 0 else None
-        f1 = (2*pre*rec)/(pre+rec) if pre is not None and rec is not None else None
-        scores[TRAITS[i]] = (acc, pre, rec, f1)
+        f1 = (2 * pre * rec) / (pre + rec) if pre is not None and rec is not None else None
+        scores[TRAITS[i]]["acc"] = acc
+        scores[TRAITS[i]]["pre"] = pre
+        scores[TRAITS[i]]["rec"] = rec
+        scores[TRAITS[i]]["f1"] = f1
     return scores
