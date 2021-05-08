@@ -62,11 +62,14 @@ class RepeatingLettersExtractor(FeatureExtractor):
 
 
 class WordCountExtractor(FeatureExtractor):
+    def __init__(self, dataset):
+        lens = torch.tensor([[1. * len(example[1].split())] for example in dataset])
+        self.mean = torch.mean(lens)
+        self.stddev = torch.sqrt(torch.var(lens))
+
     def extract(self, dataset):
         lens = torch.tensor([[1. * len(example[1].split())] for example in dataset])
-        shifted = lens - torch.mean(lens)
-        scaled = shifted / torch.sqrt(torch.var(lens))
-        return scaled
+        return (lens - self.mean) / self.stddev
 
 
 class CompositeExtractor(FeatureExtractor):
