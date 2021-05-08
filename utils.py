@@ -6,7 +6,8 @@ from datetime import datetime
 import numpy as np
 import torch
 
-project_path = pathlib.Path(__file__).parent.parent
+project_path = pathlib.Path(__file__).parent
+# project_path = pathlib.Path(__file__).parent.parent
 
 
 class Object(object):
@@ -59,8 +60,8 @@ def setup_torch_device(print_logs=True):
     device_ids = list(range(torch.cuda.device_count()))
 
     if print_logs:
-        print(torch.cuda.device_count())
-        print(device_ids)
-        print("Using device", device)
+        print(f"torch.cuda.device_count={torch.cuda.device_count()}")
+        print(f"device_ids={device_ids}")
+        print(f"Using device '{device}'")
 
     return device

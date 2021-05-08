@@ -1,6 +1,10 @@
+import os
+import random
 import re
 
-DS_PATH = './dataset/essays.csv'
+from utils import project_path
+
+DS_PATH = os.path.join(project_path, 'dataset/essays.csv')
 TRAITS = ['ext', 'neu', 'agr', 'con', 'opn']
 
 R_ID = r'\d{4}_\d+\.txt'
@@ -40,8 +44,36 @@ def load_dataset():
     return dataset
 
 
+def split_dataset(dataset, test_ratio=0.2, valid_ratio=0.2):
+    dataset = dataset.copy()
+    random.shuffle(dataset)
+
+    n = len(dataset)
+    n_val, n_test = int(valid_ratio * n), int(test_ratio * n)
+    n_train = n - n_val - n_test
+
+    train_subset, val_subset, test_subset = dataset[0:n_train], dataset[n_train:n_train + n_val], dataset[
+                                                                                                  n_train + n_val:]
+    return train_subset, val_subset, test_subset
+
+
 if __name__ == '__main__':
     dataset = load_dataset()
     assert len(dataset) == 2467
     assert len(dataset[0]) == 7
     assert dataset[0][2:] == [False, True, True, False, True]
+
+    n = len(dataset)
+    first_datum = dataset[0]
+    train, val, test = split_dataset(dataset, 0.2, 0)
+    assert (first_datum == dataset[0])  # assert that the original dataset was (probably) not shuffled
+    assert (first_datum != train[0])
+    assert (len(test) == int(0.2 * len(dataset)))
+    assert (len(val) == 0)
+    assert (n == len(train) + len(val) + len(test))
+
+    train, val, test = split_dataset(dataset, 0.2, 0.2)
+    assert (first_datum != train[0])
+    assert (len(test) == int(0.2 * len(dataset)))
+    assert (len(val) == int(0.2 * len(dataset)))
+    assert (n == len(train) + len(val) + len(test))
