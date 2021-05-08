@@ -1,26 +1,30 @@
-from abc import abstractmethod, ABC
-import torch
 import re
+from abc import abstractmethod, ABC
+
+import torch
 
 punct = ['.', '!', '?']
 RE_PUNCT = r'[?.!]'
+
 
 class FeatureExtractor(ABC):
     @abstractmethod
     def extract(self, dataset):
         pass
 
+
 class DummyExtractor(FeatureExtractor):
     def extract(self, dataset):
         return torch.randn((len(dataset), 30))
+
 
 class BOWExtractor(FeatureExtractor):
     def __init__(self, dataset):
         pass
 
     def extract(self, dataset):
-        #list[list[str,str,bool...]]
-        #list[np.array]
+        # list[list[str,str,bool...]]
+        # list[np.array]
         pass
 
 
@@ -56,9 +60,10 @@ class InterpunctionExtractor(FeatureExtractor):
                     if c == punct[i]:
                         punct_count[i] += 1
                         break
-            counts_per_person.append(punct_count)   # TODO how to normalize? Total number od punctuation marks?
+            counts_per_person.append(punct_count)  # TODO how to normalize? Total number od punctuation marks?
         # Total number of sentences?
         return torch.stack(counts_per_person)
+
 
 class InterpunctionNormalizedBySentences(FeatureExtractor):
     def extract(self, dataset):
@@ -72,6 +77,7 @@ class InterpunctionNormalizedBySentences(FeatureExtractor):
 
         return counts_per_person
 
+
 class InterpunctionNormalizedByOccurence(FeatureExtractor):
     def extract(self, dataset):
         int_ext = InterpunctionExtractor()
@@ -84,6 +90,7 @@ class InterpunctionNormalizedByOccurence(FeatureExtractor):
                     counts_per_person[i, j] /= sum
 
         return counts_per_person
+
 
 class CapitalizationExtractor(FeatureExtractor):
     def extract(self, dataset):
@@ -105,8 +112,6 @@ class CapitalizationExtractor(FeatureExtractor):
         return cap_per_person
 
 
-
-
 class RepeatingLettersExtractor(FeatureExtractor):
     def extract(self, dataset):
         values = []
@@ -115,7 +120,7 @@ class RepeatingLettersExtractor(FeatureExtractor):
             values.append([0])
             count_reps = 1
             for i in range(1, len(text)):
-                if (not text[i].isalpha()) or (text[i] != text[i-1]):
+                if (not text[i].isalpha()) or (text[i] != text[i - 1]):
                     if count_reps > 2:
                         values[-1][0] += count_reps
                     count_reps = 1
