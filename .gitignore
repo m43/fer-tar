@@ -3,6 +3,7 @@
 #######################################
 
 dataset/essays.csv
+glove_vecs/*
 
 imgs
 saved
