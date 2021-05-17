@@ -12,7 +12,7 @@ punct = ['.', '!', '?']
 RE_PUNCT = r'[?.!]'
 RE_WSPACE = r'\s+'
 WORD_VEC_PATH = "./Word2Vec/GoogleNews-vectors-negative300.bin"
-SENT_VEC_PATH = "./Sent2Vec/wiki_unigrams.bin"
+SENT_VEC_PATH = "sentences/wiki_unigrams.bin"
 
 
 class FeatureExtractor(ABC):
@@ -72,8 +72,18 @@ class W2VExtractor(FeatureExtractor):
 
 
 class S2VExtractor(FeatureExtractor):
+    def __init__(self):
+        self.model = sent2vec.Sent2vecModel()
+        self.model.load_model(SENT_VEC_PATH)
+
     def extract(self, x):
-        return torch.zeros((len(x), 1))
+        vecs = []
+        for i, text in enumerate(x):
+            sentences = re.split(RE_PUNCT, text[1])
+            embeddings = [torch.tensor(self.model.embed_sentence(s)) for s in sentences if s]
+            embeddings = torch.stack(embeddings)
+            vecs.append(torch.mean(embeddings, dim=0))
+        return torch.stack(vecs)
 
 
 class D2VExtractor(FeatureExtractor):
