@@ -25,11 +25,11 @@ class Classifier(ABC):
         pass
 
     @abstractmethod
-    def classify(self, example_x, example_y):
+    def classify(self, x, y):
         """
-        :param example_x: text to be classified; string
-        :param example_y: torch tensor with targets for given text; torch.tensor
-        :return: predicted labels; torch.tensor(5,)
+        :param x: list of essays; list[string]
+        :param y: torch tensor with targets; torch.tensor(n,5)
+        :return: predicted labels; torch.tensor(n,5)
         """
         pass
 
@@ -47,10 +47,10 @@ class MCCBaseline(Classifier):
         for i in range(len(x)):
             for j in range(5):
                 count_true[j] += 1 if x[i][j] else 0
-        self.labels = torch.tensor([count > len(x) / 2 for count in count_true])
+        self.labels = torch.tensor([count > (len(x) / 2) for count in count_true])
 
-    def classify(self, example_x, example_y):
-        return self.labels
+    def classify(self, x, y):
+        return self.labels.repeat(x.size(0), 1)
 
 
 class RandomBaseline(Classifier):
@@ -61,8 +61,11 @@ class RandomBaseline(Classifier):
     def train(self, x, y):
         pass
 
-    def classify(self, example_x, example_y):
-        return [np.random.random() > 0.5 for _ in range(5)]
+    def classify(self, x, y):
+        vals = torch.randn((x.size(0), 5))
+        vals[vals >= 0] = 1.
+        vals[vals < 0] = 0.
+        return vals
 
 
 if __name__ == '__main__':

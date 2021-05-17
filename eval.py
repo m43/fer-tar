@@ -20,12 +20,9 @@ def eval(classifier, x, y):
     :return: a dictionary with the format <trait>:<metric_name>:<metric>; dict{str:dict{str:float}}
     """
     # ~~~~~~~~~~~~~~~ GET PREDICTIONS ~~~~~~~~~~~~~~~ #
-    preds = []
-    for i in range(len(x)):
-        # TODO this could be slow, for models like NNs it might be necessary to classify
-        #  the whole dataset at once as python loops are way slower than a torch forward pass
-        preds.append(classifier.classify(x[i], y[i]))
-
+    preds = classifier.classify(x, y)
+    preds[preds >= 0] = 1.
+    preds[preds < 0] = 0.
     # ~~~~~~~~~~ COMPUTE CONFUSION MATRIX ~~~~~~~~~~~ #
     counts = [
         # TP FP FN TN
@@ -39,13 +36,13 @@ def eval(classifier, x, y):
         true_lab = y[i_ex]
         pred_lab = preds[i_ex]
         for i_tr in range(5):
-            if true_lab[i_tr]:
-                if pred_lab[i_tr]:
+            if true_lab[i_tr] == 1.:
+                if pred_lab[i_tr] == 1.:
                     counts[i_tr][TP] += 1
                 else:
                     counts[i_tr][FN] += 1
             else:
-                if pred_lab[i_tr]:
+                if pred_lab[i_tr] == 1.:
                     counts[i_tr][FP] += 1
                 else:
                     counts[i_tr][TN] += 1
