@@ -123,7 +123,7 @@ class CapitalizationExtractor(FeatureExtractor):
             for c in entry:
                 if c.isupper():
                     cap_per_person[i] += 1
-            sentences = re.split(RE_PUNCT, entry[1])
+            sentences = re.split(RE_PUNCT, entry)
             sentences = [s for s in sentences if s]  # consider only non empty sentences
             cap_per_person[i] /= len(sentences)  # normalize capitalization with the number of sentences
         return cap_per_person
@@ -147,14 +147,9 @@ class RepeatingLettersExtractor(FeatureExtractor):
 
 
 class WordCountExtractor(FeatureExtractor):
-    def __init__(self, x):
-        lens = torch.tensor([[1. * len(example.split())] for example in x])
-        self.mean = torch.mean(lens)
-        self.stddev = torch.sqrt(torch.var(lens))
 
     def extract(self, x):
-        lens = torch.tensor([[1. * len(example.split())] for example in x])
-        return (lens - self.mean) / self.stddev
+        return torch.tensor([[1. * len(example.split())] for example in x])
 
 
 class CompositeExtractor(FeatureExtractor):
@@ -187,7 +182,7 @@ if __name__ == '__main__':
         InterpunctionNormalizedByOccurence(),
         CapitalizationExtractor(),
         RepeatingLettersExtractor(),
-        WordCountExtractor(train_x)
+        WordCountExtractor()
     ]
     extractors += [CompositeExtractor(tuple(extractors))]
 
