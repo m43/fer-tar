@@ -4,6 +4,7 @@
 
 dataset/essays.csv
 glove_vecs/*
+Word2Vec/*
 
 imgs
 saved
