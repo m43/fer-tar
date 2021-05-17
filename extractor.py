@@ -1,10 +1,14 @@
 import re
+import gensim
+
 from abc import abstractmethod, ABC
 
 import torch
 
 punct = ['.', '!', '?']
 RE_PUNCT = r'[?.!]'
+RE_WSPACE = r'\s+'
+WORD_VEC_PATH = "./Word2Vec/GoogleNews-vectors-negative300.bin"
 
 
 class FeatureExtractor(ABC):
@@ -29,9 +33,17 @@ class BOWExtractor(FeatureExtractor):
 
 
 class W2VExtractor(FeatureExtractor):
-    def extract(self, dataset):
-        pass
+    def __init__(self):
+        self.model = gensim.models.Word2Vec.load_word2vec_format(WORD_VEC_PATH, binary=True)
 
+    def extract(self, x):
+        vecs = []
+        for i, text in enumerate(x):
+            vec = torch.zeros((1, 300))
+            for word in re.split(RE_WSPACE):
+                vec += self.model[word]
+            vecs.append(torch.mean(vec))
+        return torch.stack(vecs)
 
 class S2VExtractor(FeatureExtractor):
     def extract(self, dataset):
