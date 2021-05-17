@@ -2,6 +2,7 @@ import re
 from abc import abstractmethod, ABC
 
 import gensim
+import numpy as np
 import sent2vec
 import torch
 
@@ -47,7 +48,16 @@ class BOWExtractor(FeatureExtractor):
         self.vectorizer.fit(x)
 
     def extract(self, x):
-        return self.vectorizer.transform(x)
+        coo = self.vectorizer.transform(x).tocoo()
+
+        values = coo.data
+        indices = np.vstack((coo.row, coo.col))
+
+        i = torch.LongTensor(indices)
+        v = torch.FloatTensor(values)
+        shape = coo.shape
+
+        return torch.sparse.FloatTensor(i, v, torch.Size(shape)).to_dense()
 
 
 class W2VExtractor(FeatureExtractor):
