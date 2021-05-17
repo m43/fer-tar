@@ -5,7 +5,8 @@
 dataset/essays.csv
 glove_vecs/*
 Word2Vec/*
-Sent2Vec/*
+sentences/*
+sent2vec/*
 imgs
 saved
 tmp
