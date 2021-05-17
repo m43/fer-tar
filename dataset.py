@@ -15,7 +15,7 @@ REGEX_ROW = f"[^#]?({R_ID}),({R_TEXT}),({R_BIG5}),({R_BIG5}),({R_BIG5}),({R_BIG5
 PATTERN_ROW = re.compile(REGEX_ROW)
 
 
-def load_dataset():
+def load_dataset(text_preprocessing_fn = None):
     """
     Function for loading dataset from .csv file. It reads the .csv file and parses it, thus creating a list of
     all file entries. A entry consists of 7 attributes which are: author, text and bool flags for extroversion,
@@ -41,6 +41,8 @@ def load_dataset():
             c_ext, c_neu, c_agr, c_con, c_opn = [g == 'y' for g in groups[2:]]
             if text.startswith('"') and text.endswith('"'):
                 text = text[1:-1]
+            if text_preprocessing_fn is not None:
+                text = text_preprocessing_fn(text)
             dataset.append([author, text, c_ext, c_neu, c_agr, c_con, c_opn])
 
     x = [line[1] for line in dataset]
