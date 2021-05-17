@@ -1,3 +1,6 @@
+import torch
+
+import fc
 from sklearn.svm import SVC
 
 from baselines import Classifier
@@ -7,17 +10,33 @@ from extractor import DummyExtractor
 
 
 class FCClassifier(Classifier):
-    def __init__(self, extractor):
+    def __init__(self, extractor, dev):
         self.extractor = extractor
+        self.dev = dev
+        self.clfs = []
+        self.mean = None
+        self.stddev = None
 
-    def train(self, x, y):
-        classifier = self.init_classifier(x, y)
+    def train(self, x, y, epochs=5, lr=1e-4, batch_size=20, wd=1e-4):
+        features = self.extractor.extract(x).to(device=self.dev)
 
-    def classify(self, example_x, example_y):
-        pass
+        self.mean = torch.mean(features, dim=0)
+        self.stddev = torch.sqrt(torch.var(features, dim=0))
+        features = (features - self.mean) / self.stddev
+        y = y.to(device=self.dev)
 
-    def init_classifier(self, x, y):
-        pass
+        self.clfs = [fc.DeepFC(in_dim=len(features[0]), device=self.dev)
+                     for _ in range(5)]
+        for i in range(len(self.clfs)):
+            fc.train(self.clfs[i], features, y[:, i:i+1], self.dev, epochs, lr, batch_size, wd)
+
+    def classify(self, x, y):
+        features = self.extractor.extract(x).to(device=self.dev)
+        features = (features - self.mean) / self.stddev
+        preds = self.clfs[0].forward(features)
+        for i in range(1, len(self.clfs)):
+            preds = torch.cat((preds, self.clfs[i].forward(features)), dim=1)
+        return preds
 
 
 class LSTMClassifier(Classifier):
