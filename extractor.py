@@ -1,12 +1,9 @@
 import re
-import gensim
-import sent2vec
-
 from abc import abstractmethod, ABC
 
+import gensim
+import sent2vec
 import torch
-
-import dataset
 
 punct = ['.', '!', '?']
 RE_PUNCT = r'[?.!]'
@@ -45,12 +42,12 @@ class DummyExtractor(FeatureExtractor):
 
 class BOWExtractor(FeatureExtractor):
     def __init__(self, x):
-        pass
+        from sklearn.feature_extraction.text import CountVectorizer
+        self.vectorizer = CountVectorizer()
+        self.vectorizer.fit(x)
 
     def extract(self, x):
-        # list[list[str,str,bool...]]
-        # list[np.array]
-        return torch.zeros((len(x), 1))
+        return self.vectorizer.transform(x)
 
 
 class W2VExtractor(FeatureExtractor):
