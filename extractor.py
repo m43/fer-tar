@@ -1,14 +1,18 @@
 import re
 import gensim
+import sent2vec
 
 from abc import abstractmethod, ABC
 
 import torch
 
+import dataset
+
 punct = ['.', '!', '?']
 RE_PUNCT = r'[?.!]'
 RE_WSPACE = r'\s+'
 WORD_VEC_PATH = "./Word2Vec/GoogleNews-vectors-negative300.bin"
+SENT_VEC_PATH = "./Sent2Vec/wiki_unigrams.bin"
 
 
 class FeatureExtractor(ABC):
@@ -51,16 +55,21 @@ class BOWExtractor(FeatureExtractor):
 
 class W2VExtractor(FeatureExtractor):
     def __init__(self):
-        self.model = gensim.models.Word2Vec.load_word2vec_format(WORD_VEC_PATH, binary=True)
+        self.model = gensim.models.KeyedVectors.load_word2vec_format(WORD_VEC_PATH, binary=True)
 
     def extract(self, x):
         vecs = []
-        for i, text in enumerate(x):
-            vec = torch.zeros((1, 300))
-            for word in re.split(RE_WSPACE):
-                vec += self.model[word]
-            vecs.append(torch.mean(vec))
+        for text in x:
+            words = re.split(RE_WSPACE, text)
+            vec = torch.empty((len(words), 300))
+            for i, word in enumerate(words):
+                try:
+                    vec[i] = torch.tensor(self.model[word])
+                except KeyError:  # out of vocabulary word
+                    continue
+            vecs.append(torch.mean(vec, dim=0))
         return torch.stack(vecs)
+
 
 class S2VExtractor(FeatureExtractor):
     def extract(self, x):
