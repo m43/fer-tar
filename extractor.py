@@ -28,6 +28,16 @@ class FeatureExtractor(ABC):
         """
         pass
 
+    @abstractmethod
+    def normalize(self, x):
+        """
+        Normalizes the features in the feature tensor produced by this FeatureExtractor.
+
+        :param x: a tensor of features extracted by this FeatureExtractor; torch.tensor
+        :return: normalized input tensor; torch.tensor
+        """
+        pass
+
 
 class DummyExtractor(FeatureExtractor):
     """
@@ -209,8 +219,6 @@ if __name__ == '__main__':
     test_x = ["Četrnaest palmi"]
 
     extractors = [
-        DummyExtractor(),
-        DummyExtractor(10),
         BOWExtractor(train_x),
         W2VExtractor(),
         S2VExtractor(),
