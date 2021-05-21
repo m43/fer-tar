@@ -1,16 +1,23 @@
+import os
 import re
 from abc import abstractmethod, ABC
 
 import gensim
 import numpy as np
-import sent2vec
 import torch
+
+from utils import project_path
 
 punct = ['.', '!', '?']
 RE_PUNCT = r'[?.!]'
 RE_WSPACE = r'\s+'
-WORD_VEC_PATH = "./Word2Vec/GoogleNews-vectors-negative300.bin"
-SENT_VEC_PATH = "sentences/wiki_unigrams.bin"
+
+# Word2vec Pre-Trained Models from https://code.google.com/archive/p/word2vec/
+W2V_GOOGLE_NEWS_PATH = os.path.join(project_path, "saved/w2v/GoogleNews-vectors-negative300.bin")
+
+# Sent2vec Pre-Trained Models from https://github.com/epfml/sent2vec/)
+S2V_TWITTER_UNIGRAMS_PATH = os.path.join(project_path, "saved/s2v/twitter_unigrams.bin")
+S2V_TWITTER_BIGRAMS_PATH = os.path.join(project_path, "saved/s2v/twitter_bigrams.bin")
 
 
 class FeatureExtractor(ABC):
@@ -61,8 +68,9 @@ class BOWExtractor(FeatureExtractor):
 
 
 class W2VExtractor(FeatureExtractor):
-    def __init__(self):
-        self.model = gensim.models.KeyedVectors.load_word2vec_format(WORD_VEC_PATH, binary=True)
+    def __init__(self, pretrained_path=W2V_GOOGLE_NEWS_PATH):
+        assert os.path.exists(pretrained_path)
+        self.model = gensim.models.KeyedVectors.load_word2vec_format(pretrained_path, binary=True)
 
     def extract(self, x):
         vecs = []
@@ -79,16 +87,17 @@ class W2VExtractor(FeatureExtractor):
 
 
 class S2VExtractor(FeatureExtractor):
-    def __init__(self):
+    def __init__(self, pretrained_model_path=S2V_TWITTER_UNIGRAMS_PATH):
+        import sent2vec  # https://github.com/epfml/sent2vec/)
         self.model = sent2vec.Sent2vecModel()
-        self.model.load_model(SENT_VEC_PATH)
+        assert os.path.exists(pretrained_model_path)
+        self.model.load_model(pretrained_model_path)
 
     def extract(self, x):
         vecs = []
         for i, text in enumerate(x):
-            sentences = re.split(RE_PUNCT, text[1])
-            embeddings = [torch.tensor(self.model.embed_sentence(s)) for s in sentences if s]
-            embeddings = torch.stack(embeddings)
+            sentences = [s for s in re.split(RE_PUNCT, text[1]) if s]
+            embeddings = torch.tensor(self.model.embed_sentences(sentences))
             vecs.append(torch.mean(embeddings, dim=0))
         return torch.stack(vecs)
 
@@ -204,9 +213,10 @@ class CompositeExtractor(FeatureExtractor):
 
 if __name__ == '__main__':
     train_x = ["Četrnaest palmi na otoku sreće Žalo po kojem se valja val", "no interpunction", "CAPITAL", "lower",
-               "12345",
-               "/.,/.,/.,", "?!.", "This is a noooooormal sentence."]
+               "12345", "This is a noooooormal sentence."]  # "/.,/.,/.,", "?!."
     test_x = ["Četrnaest palmi"]
+
+    print("Initializing extractors...")
 
     extractors = [
         DummyExtractor(),
@@ -224,6 +234,7 @@ if __name__ == '__main__':
     ]
     extractors += [CompositeExtractor(tuple(extractors))]
 
+    print("Extractors initialized.")
     for e in extractors:
         print(f"Extractor {e.__class__.__name__} -- TRAIN:")
         print(e.extract(train_x))
