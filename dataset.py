@@ -1,5 +1,5 @@
 import os
-import re
+import csv
 
 import torch
 
@@ -7,12 +7,6 @@ from utils import project_path
 
 DS_PATH = os.path.join(project_path, 'dataset/essays.csv')
 TRAITS = ['ext', 'neu', 'agr', 'con', 'opn']
-
-R_ID = r'\d{4}_\d+\.txt'
-R_TEXT = r'"?.+"?'
-R_BIG5 = r'[n|y]'
-REGEX_ROW = f"[^#]?({R_ID}),({R_TEXT}),({R_BIG5}),({R_BIG5}),({R_BIG5}),({R_BIG5}),({R_BIG5})"
-PATTERN_ROW = re.compile(REGEX_ROW)
 
 
 def load_dataset(text_preprocessing_fn = None):
@@ -24,26 +18,13 @@ def load_dataset(text_preprocessing_fn = None):
     :return: (x, y); (list[string], torch.tensor)
     """
     dataset = []
-    # loading does not work with 'utf8' for some reason
     with open(DS_PATH, 'r', encoding='cp1252') as essays:
-        while True:
-            # for large files, line by line is better than reading all lines
-            line = essays.readline()
-            if not line:
-                break
-
-            match = PATTERN_ROW.match(line)
-            if match is None:
+        dsreader = csv.reader(essays, delimiter=',', quotechar='"')
+        for row in dsreader:
+            if row[0].startswith("#"):
                 continue
-
-            groups = match.groups()
-            author, text = groups[0], groups[1]
-            c_ext, c_neu, c_agr, c_con, c_opn = [g == 'y' for g in groups[2:]]
-            if text.startswith('"') and text.endswith('"'):
-                text = text[1:-1]
-            if text_preprocessing_fn is not None:
-                text = text_preprocessing_fn(text)
-            dataset.append([author, text, c_ext, c_neu, c_agr, c_con, c_opn])
+            dataset_row = [(row[i] if i < 2 else (1. if row[i] == 'y' else 0.)) for i in range(len(row))]
+            dataset.append(dataset_row)
 
     x = [line[1] for line in dataset]
     y = torch.tensor([line[2:] for line in dataset], dtype=torch.float32)
