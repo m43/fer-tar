@@ -1,10 +1,12 @@
 import os
 import re
 from abc import abstractmethod, ABC
+from sklearn.feature_extraction.text import TfidfVectorizer
 
 import gensim
 import numpy as np
 import torch
+import dataset
 
 from utils import project_path
 
@@ -50,11 +52,15 @@ class DummyExtractor(FeatureExtractor):
 
 class BOWExtractor(FeatureExtractor):
     def __init__(self, x):
-        from sklearn.feature_extraction.text import CountVectorizer
-        self.vectorizer = CountVectorizer()
+        self.vectorizer = TfidfVectorizer()
         self.vectorizer.fit(x)
 
     def extract(self, x):
+        """
+
+        :param x: List of essays whose tf-idf count is to be extracted.
+        :return: dense tensor containing tf-idf count for each essay; tensor
+        """
         coo = self.vectorizer.transform(x).tocoo()
 
         values = coo.data
