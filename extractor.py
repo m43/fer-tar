@@ -83,6 +83,8 @@ class W2VExtractor(FeatureExtractor):
     """
     def __init__(self, **kwargs):
         self.model = gensim.models.KeyedVectors.load_word2vec_format(WORD_VEC_PATH, binary=True)
+        self.mean = None
+        self.stddev = None
 
     def pre(self, x, **kwargs):
         return None
@@ -97,7 +99,11 @@ class W2VExtractor(FeatureExtractor):
                 except KeyError:  # out of vocabulary word
                     continue
             vecs.append(torch.mean(vec, dim=0))
-        return torch.stack(vecs)
+        stack = torch.stack(vecs)
+        if self.mean is None and self.stddev is None:
+            self.mean = torch.mean(stack, dim=0)
+            self.stddev = torch.sqrt(torch.var(stack, dim=0))
+        return (stack - self.mean) / self.stddev
 
 
 class S2VExtractor(FeatureExtractor):
@@ -194,7 +200,10 @@ class RepeatingLettersExtractor(FeatureExtractor):
 
 class WordCountExtractor(FeatureExtractor):
     def __init__(self, **kwargs):
-        pass
+        _, x = kwargs['train_x']
+        wc = torch.tensor([[1. * len([t for t in tokens if t not in PUNCT])] for tokens in x])
+        self.mean = torch.mean(wc)
+        self.stddev = torch.sqrt(torch.var(wc))
 
     def pre(self, x, **kwargs):
         return None
@@ -203,7 +212,8 @@ class WordCountExtractor(FeatureExtractor):
         """
         Returns the number of tokens in each person's essay.
         """
-        return torch.tensor([[1. * len([t for t in tokens if t not in PUNCT])] for tokens in x])
+        wc =  torch.tensor([[1. * len([t for t in tokens if t not in PUNCT])] for tokens in x])
+        return (wc - self.mean) / self.stddev
 
 
 if __name__ == '__main__':
