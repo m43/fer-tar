@@ -5,7 +5,6 @@ import torch
 
 from utils import project_path
 from nltk.tokenize import word_tokenize, sent_tokenize
-from nltk.corpus import stopwords
 
 DS_PATH = os.path.join(project_path, 'dataset/essays.csv')
 TRAITS = ['ext', 'neu', 'agr', 'con', 'opn']
@@ -58,11 +57,15 @@ def split_dataset(x, y, test_ratio=0.2, valid_ratio=0.2):
     return (train_x, train_y), (val_x, val_y), (test_x, test_y)
 
 
-def load_features(extractor_hooks, x=None, y=None, test_ratio=0.2, valid_ratio=0.2):
+def load_features(extractor_hooks, device=None, x=None, y=None, test_ratio=0.2, valid_ratio=0.2):
     if x is None and y is None:
+        print("Loading dataset from CSV file...")
         x, y = load_dataset()
+
+    print("Creating train/valid/test splits...")
     (trnx, trny), (valx, valy), (tesx, tesy) = split_dataset(x, y, test_ratio=test_ratio, valid_ratio=valid_ratio)
 
+    print("Tokenizing essays...")
     sc_trnx = [len(sent_tokenize(xi)) for xi in trnx]
     sc_valx = [len(sent_tokenize(xi)) for xi in valx]
     sc_tesx = [len(sent_tokenize(xi)) for xi in tesx]
@@ -70,20 +73,24 @@ def load_features(extractor_hooks, x=None, y=None, test_ratio=0.2, valid_ratio=0
     tok_valx = [word_tokenize(xi.lower()) for xi in valx]
     tok_tesx = [word_tokenize(xi.lower()) for xi in tesx]
 
+    print("Initializing extractors...")
     extractors = [hook(train_x=(trnx, tok_trnx)) for hook in extractor_hooks]
+
+    print("Extracting features (untokenized text)...")
     trn_pre_feats = torch.cat([t for t in [e.pre(trnx) for e in extractors] if t is not None], dim=1)
     val_pre_feats = torch.cat([t for t in [e.pre(valx) for e in extractors] if t is not None], dim=1)
     tes_pre_feats = torch.cat([t for t in [e.pre(tesx) for e in extractors] if t is not None], dim=1)
 
+    print("Extracting features (tokenized text)...")
     trn_post_feats = torch.cat([t for t in [e.post(tok_trnx, sc=sc_trnx) for e in extractors] if t is not None], dim=1)
     val_post_feats = torch.cat([t for t in [e.post(tok_valx, sc=sc_valx) for e in extractors] if t is not None], dim=1)
     tes_post_feats = torch.cat([t for t in [e.post(tok_tesx, sc=sc_tesx) for e in extractors] if t is not None], dim=1)
 
-    train_x = torch.cat((trn_pre_feats, trn_post_feats), dim=1)
-    val_x = torch.cat((val_pre_feats, val_post_feats), dim=1)
-    test_x = torch.cat((tes_pre_feats, tes_post_feats), dim=1)
+    train_x = torch.cat((trn_pre_feats, trn_post_feats), dim=1).to(device=device)
+    val_x = torch.cat((val_pre_feats, val_post_feats), dim=1).to(device=device)
+    test_x = torch.cat((tes_pre_feats, tes_post_feats), dim=1).to(device=device)
 
-    return (train_x, trny), (val_x, valy), (test_x, tesy)
+    return (train_x, trny.to(device=device)), (val_x, valy.to(device=device)), (test_x, tesy.to(device=device))
 
 
 if __name__ == '__main__':
