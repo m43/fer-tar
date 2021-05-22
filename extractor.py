@@ -1,4 +1,3 @@
-import math
 import re
 from abc import abstractmethod, ABC
 
@@ -93,18 +92,13 @@ class W2VExtractor(FeatureExtractor):
     def post(self, x, **kwargs):
         vecs = []
         for tokens in x:
-            vec = torch.empty((len(tokens), 300))
-            for i, word in enumerate(tokens):
-                try:
-                    vec[i] = torch.tensor(self.model[word])
-                except KeyError:  # out of vocabulary word
-                    continue
+            embeddable = [t for t in tokens if t in self.model.vocab]
+            vec = torch.empty((len(embeddable), 300))
+            for i, word in enumerate(embeddable):
+                vec[i] = torch.tensor(self.model[word])
             vecs.append(torch.mean(vec, dim=0))
-        stack = torch.stack(vecs)
-        if self.mean is None and self.stddev is None:
-            self.mean = torch.mean(stack, dim=0)
-            self.stddev = torch.sqrt(torch.var(stack, dim=0))
-        return (stack - self.mean) / self.stddev
+        result = torch.stack(vecs)
+        return result
 
 
 class S2VExtractor(FeatureExtractor):
