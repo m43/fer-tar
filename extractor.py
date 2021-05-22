@@ -1,3 +1,4 @@
+import math
 import re
 from abc import abstractmethod, ABC
 
@@ -157,14 +158,10 @@ class CapitalizationExtractor(FeatureExtractor):
 
     def pre(self, x, **kwargs):
         cap_per_person = torch.zeros((len(x), 1), dtype=torch.float32)
-
+        sc = kwargs['sc']
         for i, entry in enumerate(x):
-            for c in entry:
-                if c.isupper():
-                    cap_per_person[i] += 1
-            sentences = re.split(RE_PUNCT, entry)
-            sentences = [s for s in sentences if s]  # consider only non empty sentences
-            cap_per_person[i] /= len(sentences)  # normalize capitalization with the number of sentences
+            cap_count = len([c for c in entry if c.isupper()])
+            cap_per_person[i] = cap_count if sc[i] == 0 else cap_count / sc[i]
         return cap_per_person
 
     def post(self, x, **kwargs):

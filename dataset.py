@@ -77,9 +77,9 @@ def load_features(extractor_hooks, device=None, x=None, y=None, test_ratio=0.2, 
     extractors = [hook(train_x=(trnx, tok_trnx)) for hook in extractor_hooks]
 
     print("Extracting features (untokenized text)...")
-    trn_pre_feats = torch.cat([t for t in [e.pre(trnx) for e in extractors] if t is not None], dim=1)
-    val_pre_feats = torch.cat([t for t in [e.pre(valx) for e in extractors] if t is not None], dim=1)
-    tes_pre_feats = torch.cat([t for t in [e.pre(tesx) for e in extractors] if t is not None], dim=1)
+    trn_pre_feats = torch.cat([t for t in [e.pre(trnx, sc=sc_trnx) for e in extractors] if t is not None], dim=1)
+    val_pre_feats = torch.cat([t for t in [e.pre(valx, sc=sc_valx) for e in extractors] if t is not None], dim=1)
+    tes_pre_feats = torch.cat([t for t in [e.pre(tesx, sc=sc_tesx) for e in extractors] if t is not None], dim=1)
 
     print("Extracting features (tokenized text)...")
     trn_post_feats = torch.cat([t for t in [e.post(tok_trnx, sc=sc_trnx) for e in extractors] if t is not None], dim=1)
