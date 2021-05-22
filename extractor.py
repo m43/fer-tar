@@ -20,8 +20,8 @@ RE_WSPACE = r'\s+'
 W2V_GOOGLE_NEWS_PATH = os.path.join(project_path, "saved/w2v/GoogleNews-vectors-negative300.bin")
 
 # Sent2vec Pre-Trained Models from https://github.com/epfml/sent2vec/)
-S2V_TWITTER_UNIGRAMS_PATH = os.path.join(project_path, "saved/s2v/twitter_unigrams.bin")
-S2V_TWITTER_BIGRAMS_PATH = os.path.join(project_path, "saved/s2v/twitter_bigrams.bin")
+S2V_WIKI_UNGIRAMS_PATH = os.path.join(project_path, "saved/s2v/wiki_unigrams.bin")
+S2V_TORONTO_UNIGRAMS_PATH = os.path.join(project_path, "saved/s2v/torontobooks_unigrams.bin")
 
 
 class FeatureExtractor(ABC):
@@ -98,7 +98,7 @@ class S2VExtractor(FeatureExtractor):
 
     def __init__(self, **kwargs):
         self.model = sent2vec.Sent2vecModel()
-        self.model.load_model(S2V_TWITTER_UNIGRAMS_PATH)
+        self.model.load_model(S2V_WIKI_UNGIRAMS_PATH if kwargs['wiki'] else S2V_TORONTO_UNIGRAMS_PATH)
         self.fit_raw = kwargs['s2v_fit_raw']
 
     def extract(self, x_raw, x_tok, x_sen, **kwargs):
