@@ -219,4 +219,6 @@ if __name__ == '__main__':
                  CapitalizationExtractor, RepeatingLettersExtractor,
                  WordCountExtractor, W2VExtractor)
 
-    (trnx, trny), (valx, valy), (tesx, tesy) = dataset.load_features(ext_hooks, torch.device('cuda:0'), raw_x, y, 0.17, 0.35)
+    train, valid, test = dataset.load_features(ext_hooks, device=torch.device('cuda:0'), x=raw_x, y=y,
+                                               valid_ratio=0.17, test_ratio=0.35, bow_fit_raw=True,
+                                               s2v_fit_raw=True, wiki=False, w2v_limit=1000000)

@@ -2,6 +2,7 @@ import os
 import csv
 
 import torch
+from torch.utils.data import TensorDataset, DataLoader
 
 from utils import project_path
 from nltk.tokenize import word_tokenize, sent_tokenize
@@ -83,16 +84,23 @@ def load_features(extractor_hooks, x=None, y=None, **kwargs):
 
     print("Initializing extractors...")
     extractors = [hook(**kwargs) for hook in extractor_hooks]
-    device = kwargs['device']
     print("DONE")
 
     print("Extracting features...")
-    trn_feats = torch.cat([e.extract(trnx, tok_trnx, sen_trnx) for e in extractors], dim=1).to(device=device)
-    val_feats = torch.cat([e.extract(valx, tok_valx, sen_valx) for e in extractors], dim=1).to(device=device)
-    tes_feats = torch.cat([e.extract(tesx, tok_tesx, sen_tesx) for e in extractors], dim=1).to(device=device)
+    trn_feats = torch.cat([e.extract(trnx, tok_trnx, sen_trnx) for e in extractors], dim=1)
+    val_feats = torch.cat([e.extract(valx, tok_valx, sen_valx) for e in extractors], dim=1)
+    tes_feats = torch.cat([e.extract(tesx, tok_tesx, sen_tesx) for e in extractors], dim=1)
     print("DONE")
 
-    return (trn_feats, trny.to(device=device)), (val_feats, valy.to(device=device)), (tes_feats, tesy.to(device=device))
+    train_ds = TensorDataset(trn_feats, trny)
+    valid_ds = TensorDataset(val_feats, valy)
+    test_ds = TensorDataset(tes_feats, tesy)
+
+    return train_ds, valid_ds, test_ds
+
+
+def wrap_datasets(batch_size, *datasets):
+    return [DataLoader(dataset=d, batch_size=batch_size, shuffle=True) for d in datasets]
 
 
 if __name__ == '__main__':
