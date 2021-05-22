@@ -4,6 +4,8 @@ import csv
 import torch
 
 from utils import project_path
+from nltk.tokenize import word_tokenize, sent_tokenize
+from nltk.corpus import stopwords
 
 DS_PATH = os.path.join(project_path, 'dataset/essays.csv')
 TRAITS = ['ext', 'neu', 'agr', 'con', 'opn']
@@ -54,6 +56,34 @@ def split_dataset(x, y, test_ratio=0.2, valid_ratio=0.2):
     train_x, val_x, test_x = x[0:n_train], x[n_train:n_train + n_val], x[n_train + n_val:]
     train_y, val_y, test_y = y[0:n_train], y[n_train:n_train + n_val], y[n_train + n_val:]
     return (train_x, train_y), (val_x, val_y), (test_x, test_y)
+
+
+def load_features(extractor_hooks, x=None, y=None, test_ratio=0.2, valid_ratio=0.2):
+    if x is None and y is None:
+        x, y = load_dataset()
+    (trnx, trny), (valx, valy), (tesx, tesy) = split_dataset(x, y, test_ratio=test_ratio, valid_ratio=valid_ratio)
+
+    sc_trnx = [len(sent_tokenize(xi)) for xi in trnx]
+    sc_valx = [len(sent_tokenize(xi)) for xi in valx]
+    sc_tesx = [len(sent_tokenize(xi)) for xi in tesx]
+    tok_trnx = [word_tokenize(xi.lower()) for xi in trnx]
+    tok_valx = [word_tokenize(xi.lower()) for xi in valx]
+    tok_tesx = [word_tokenize(xi.lower()) for xi in tesx]
+
+    extractors = [hook(train_x=(trnx, tok_trnx)) for hook in extractor_hooks]
+    trn_pre_feats = torch.cat([t for t in [e.pre(trnx) for e in extractors] if t is not None], dim=1)
+    val_pre_feats = torch.cat([t for t in [e.pre(valx) for e in extractors] if t is not None], dim=1)
+    tes_pre_feats = torch.cat([t for t in [e.pre(tesx) for e in extractors] if t is not None], dim=1)
+
+    trn_post_feats = torch.cat([t for t in [e.post(tok_trnx, sc=sc_trnx) for e in extractors] if t is not None], dim=1)
+    val_post_feats = torch.cat([t for t in [e.post(tok_valx, sc=sc_valx) for e in extractors] if t is not None], dim=1)
+    tes_post_feats = torch.cat([t for t in [e.post(tok_tesx, sc=sc_tesx) for e in extractors] if t is not None], dim=1)
+
+    train_x = torch.cat((trn_pre_feats, trn_post_feats), dim=1)
+    val_x = torch.cat((val_pre_feats, val_post_feats), dim=1)
+    test_x = torch.cat((tes_pre_feats, tes_post_feats), dim=1)
+
+    return (train_x, trny), (val_x, valy), (test_x, tesy)
 
 
 if __name__ == '__main__':
