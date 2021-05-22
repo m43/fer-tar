@@ -6,7 +6,7 @@ import torch
 from utils import project_path
 from nltk.tokenize import word_tokenize, sent_tokenize
 
-DS_PATH = os.path.join(project_path, 'dataset/essays1k.csv')
+DS_PATH = os.path.join(project_path, 'dataset/essays.csv')
 TRAITS = ['ext', 'neu', 'agr', 'con', 'opn']
 
 
