@@ -8,8 +8,9 @@ class DeepFC(nn.Module):
         super().__init__()
 
         self.model = nn.Sequential(
-            nn.Linear(in_dim, 30), nn.ReLU(),
-            nn.Linear(30, 1)
+            nn.Linear(in_dim, 400), nn.ReLU(),
+            nn.Linear(400, 100), nn.ReLU(),
+            nn.Linear(100, 1)
         )
         self.loss = nn.BCEWithLogitsLoss()
 
@@ -22,7 +23,7 @@ class DeepFC(nn.Module):
 
 
 def train(model, train_x, train_y, device, epochs, lr, batch_size, wd):
-    opt = torch.optim.SGD(model.parameters(), lr=lr, weight_decay=wd)
+    opt = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=wd)
 
     for i in range(epochs):
         perm = torch.randperm(train_x.size(0), device=device)
