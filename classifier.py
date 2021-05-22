@@ -1,4 +1,8 @@
+from abc import abstractmethod, ABC
+
 import torch
+from typing import Tuple
+
 from sklearn.svm import SVC
 
 import fc
@@ -7,6 +11,90 @@ from dataset import split_dataset, load_dataset
 from eval import eval
 from extractor import DummyExtractor
 from trainer.trainer import DeepFCTrainer
+
+from torch.utils.data import DataLoader
+
+
+class TraitClassifier(ABC):
+    """
+    Abstract class modeling a single binary classifier,
+    to be used as a classifier for a single Big5 trait.
+    """
+
+    def __init__(self, index):
+        """
+        Constructor for a TraitClassifier, taking the index of the trait
+        for which it is specialized.
+
+        :param index: index of the trait to classify; int
+        """
+        self.index = index
+
+    @abstractmethod
+    def train(self, data: Tuple[DataLoader, DataLoader, DataLoader], **kwargs):
+        """
+        Trains the classifier on the given data which includes a train,
+        validation and test splits.
+
+        :param data: tuple of three datasets (train, valid, test); tuple(torch.DataLoader)
+        :param kwargs: possible additional arguments; dict{str:Any}
+        :return: None
+        """
+        pass
+
+    @abstractmethod
+    def forward(self, data: DataLoader):
+        """
+        Performs a forward pass with the given data as input,
+        returning the scores. Since the DataLoader can shuffle
+        the data, the true labels are also returned.
+
+        For classifiers with an undefined "forward pass", such as
+        SVM, this method returns the classification labels.
+
+        :param data: dataset; torch.DataLoader
+        :return: tensor of prediction scores and tensor of true labels; (torch.tensor, torch.tensor)
+        """
+        pass
+
+    @abstractmethod
+    def classify(self, data: DataLoader):
+        """
+        Predicts the true labels of the given data. Since the
+        DataLoader shuffle the data, the true labels are also
+        returned.
+
+        :param data: dataset; torch.DataLoader
+        :return: tensor of predicted labels and tensor of true labels; (torch.tensor, torch.tensor)
+        """
+        pass
+
+
+class CompoundClassifier:
+    def __init__(self, hooks):
+        self.clfs = [hook(i, **kwargs) for i, (hook, kwargs) in enumerate(hooks)]
+
+    def train(self, data, **kwargs):
+        for clf in self.clfs:
+            clf.train(data, **kwargs)
+
+    def forward(self, data):
+        scores = torch.zeros((len(data.dataset), 5))
+        true = torch.zeros((len(data.dataset), 5))
+        for i, clf in enumerate(self.clfs):
+            clf_scores, clf_true = clf.forward(data)
+            scores[:, i] = clf_scores.flatten()
+            true[:, i] = clf_true.flatten()
+        return scores, true
+
+    def classify(self, data):
+        preds = torch.zeros((len(data.dataset), 5))
+        true = torch.zeros((len(data.dataset), 5))
+        for i, clf in enumerate(self.clfs):
+            clf_preds, clf_true = clf.classify(data)
+            preds[:, i] = clf_preds.flatten()
+            true[:, i] = clf_true.flatten()
+        return preds, true
 
 
 class FCClassifier(Classifier):
