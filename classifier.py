@@ -10,7 +10,6 @@ from baselines import Classifier
 from dataset import split_dataset, load_dataset
 from eval import eval
 from extractor import DummyExtractor
-from trainer.trainer import DeepFCTrainer
 
 from torch.utils.data import DataLoader
 
@@ -130,17 +129,35 @@ class SVMClassifier(TraitClassifier):
         return self.forward(data)
 
 
-class FCClassifier(Classifier):
-    def train(self, train_dataloader, valid_dataloader, test_dataloader, params):
-        self.clfs = [fc.DeepFC(params["neurons_per_layer"]) for _ in range(5)]
-        for i in range(len(self.clfs)):
-            DeepFCTrainer.train(self.clfs[i], train_dataloader, valid_dataloader, test_dataloader, self.params)
+class FCClassifier(TraitClassifier):
+    def __init__(self, index, **kwargs):
+        super().__init__(index)
+        self.model = fc.DeepFC(**kwargs)
+        self.device = kwargs['device']
 
-    def classify(self, x, y):
-        preds = self.clfs[0].forward(x)
-        for i in range(1, len(self.clfs)):
-            preds = torch.cat((preds, self.clfs[i].forward(x)), dim=1)
-        return preds
+    def train(self, data, **kwargs):
+        train, valid, test = data
+        fc.train(self.model, train, valid, test, index=self.index, **kwargs)
+
+    def forward(self, data: DataLoader):
+        N = len(data.dataset)
+        scores = torch.zeros((N, 1))
+        true = torch.zeros((N, 1))
+        start, end = 0, data.batch_size
+        with torch.no_grad():
+            for i, batch in enumerate(data):
+                x, y = batch
+                true[start:end] = y[:, self.index:self.index+1]
+                scores[start:end] = self.model.forward(x.to(self.device))
+                start = end
+                end = min(end + data.batch_size, N)
+        return scores, true
+
+    def classify(self, data):
+        scores, true = self.forward(data)
+        scores[scores >= 0] = 1.
+        scores[scores < 0] = 0.
+        return scores, true
 
 
 class LSTMClassifier(Classifier):
