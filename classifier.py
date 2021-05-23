@@ -74,7 +74,9 @@ class CompoundClassifier:
         self.clfs = [hook(i, **kwargs) for i, (hook, kwargs) in enumerate(hooks)]
 
     def train(self, data, **kwargs):
-        for clf in self.clfs:
+        for i, clf in enumerate(self.clfs):
+            if kwargs['debug_print']:
+                print(f"Training '{TRAITS[i]}' classifier: {type(clf)} ...")
             clf.train(data, **kwargs)
 
     def forward(self, data):
@@ -94,6 +96,9 @@ class CompoundClassifier:
             preds[:, i] = clf_preds.flatten()
             true[:, i] = clf_true.flatten()
         return preds, true
+
+    def __str__(self):
+        return 'Compound Classifier:\n' + '\n'.join(['\t' + str(c) for c in self.clfs])
 
 
 class SVMClassifier(TraitClassifier):
@@ -128,6 +133,9 @@ class SVMClassifier(TraitClassifier):
     def classify(self, data):
         return self.forward(data)
 
+    def __str__(self):
+        return f"{self.index + 1}. SVMClassifier[{TRAITS[self.index]}]"
+
 
 class FCClassifier(TraitClassifier):
     def __init__(self, index, **kwargs):
@@ -159,6 +167,8 @@ class FCClassifier(TraitClassifier):
         scores[scores < 0] = 0.
         return scores, true
 
+    def __str__(self):
+        return f"{self.index + 1}. FCClassifier[{TRAITS[self.index]}]"
 
 class LSTMClassifier(Classifier):
     pass
