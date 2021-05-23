@@ -1,50 +1,28 @@
+from collections import OrderedDict
+
 import torch
 import torch.nn as nn
 
 
 class DeepFC(nn.Module):
-
-    def __init__(self, in_dim, device):
+    def __init__(self, neurons_per_layer, activation_module=torch.nn.ReLU, softmax_at_end=False):
         super().__init__()
+        assert (len(neurons_per_layer) > 1)
 
-        self.model = nn.Sequential(
-            nn.Linear(in_dim, 400), nn.ReLU(),
-            nn.Linear(400, 100), nn.ReLU(),
-            nn.Linear(100, 1)
-        )
-        self.loss = nn.BCEWithLogitsLoss()
+        self.neurons_per_layer = neurons_per_layer
+        self.activation_fn = activation_module
 
-        if device is not None:
-            self.dvc = device
-            self.to(device=torch.device(device))
+        layers = OrderedDict()
+        for i in range(1, len(neurons_per_layer)):
+            n_in, n_out = neurons_per_layer[i - 1], neurons_per_layer[i]
+            layers[f"ll_{i}"] = nn.Linear(in_features=n_in, out_features=n_out, bias=True)
 
-    def forward(self, X):
-        return self.model(X)
+            if i != len(self.neurons_per_layer) - 1:
+                layers[f"a_{i}"] = self.activation_fn()
+            elif softmax_at_end:
+                layers[f"a_{i}"] = nn.Softmax()
 
+        self.seq = nn.Sequential(layers)
 
-def train(model, train_x, train_y, device, epochs, lr, batch_size, wd):
-    opt = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=wd)
-
-    for i in range(epochs):
-        perm = torch.randperm(train_x.size(0), device=device)
-        train_x, train_y = train_x[perm], train_y[perm]
-
-        start, end = 0, min(batch_size, train_x.size(0))
-        batch_i = 0
-
-        while True:
-            opt.zero_grad()
-            x_batch = train_x[start:end]
-            y_batch = train_y[start:end]
-            loss = model.loss(model.forward(x_batch), y_batch)
-            loss.backward()
-            opt.step()
-
-            if batch_i % 10 == 0:
-                print(f"epoch: {i}, batch_i: {batch_i}, loss: {loss}")
-
-            batch_i += 1
-            start = end
-            end = min(start+batch_size, train_x.size(0))
-            if start == end:
-                break
+    def forward(self, x):
+        return self.seq(x)
