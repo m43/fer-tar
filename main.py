@@ -5,8 +5,7 @@ import numpy as np
 
 import classifier
 from extractor import *
-from baselines import RandomBaseline, MCCBaseline
-from dataset import load_features, TRAITS
+from dataset import load_features, TRAITS, wrap_datasets
 from eval import eval
 from utils import setup_torch_reproducibility, setup_torch_device, project_path, get_str_formatted_time, ensure_dir
 
@@ -16,11 +15,11 @@ if __name__ == '__main__':
     print("FER, University of Zagreb, Croatia")
 
     # ~~~~ Config ~~~~ #
-    n_runs = 1  # How many times will each model be run, used to calculate std. dev.
+    n_runs = 5  # How many times will each model be run, used to calculate std. dev.
     seed = 72  # Initial seed, used to setup reproducibility
     time_str = get_str_formatted_time()  # string time identifier
-    test_split_ratio, val_split_ratio = 0.2, 0.2
-    run_name = f"baselines_s={seed}_n={n_runs}_testratio={test_split_ratio}"  # The run name is used for logging
+    test_ratio, val_ratio = 0.2, 0.2
+    run_name = f"baselines_s={seed}_n={n_runs}_testratio={test_ratio}"  # The run name is used for logging
     save_dir = os.path.join(project_path, f"imgs/{run_name}")  # Where should logs be saved
     ensure_dir(save_dir)
 
@@ -28,15 +27,20 @@ if __name__ == '__main__':
     device = setup_torch_device()
     setup_torch_reproducibility(seed)
     classifiers = []
-    ext_hooks = (W2VExtractor, CapitalizationExtractor)
-    (train_x, train_y), (val_x, val_y), (test_x, test_y) = load_features(ext_hooks,
-                                                                         device=device,
-                                                                         valid_ratio=val_split_ratio,
-                                                                         test_ratio=test_split_ratio)
-    print(torch.max(train_x))
-    print(torch.min(train_x))
-    fc_args = {"epochs": 20, "lr": 1e-4, "batch_size": 32, "wd": 0}
-    classifiers += [("FCClassifier", lambda: classifier.FCClassifier(len(train_x[0]), dev=device), fc_args)]
+    extract_cfg = {
+        'valid_ratio': val_ratio, 'test_ratio': test_ratio,
+        'device': device,
+        'bow_fit_raw': True,
+        's2v_fit_raw': True, 'wiki': False,
+        'w2v_limit': 1000000
+    }
+    ext_hooks = (InterpunctionExtractor, RepeatingLettersExtractor, CapitalizationExtractor, WordCountExtractor)
+    fc_args = {"epochs": 20, "lr": 1e-4, "batch_size": 16, "wd": 0}
+
+    train, valid, test = load_features(ext_hooks, **extract_cfg)
+    train, valid, test = wrap_datasets(fc_args['batch_size'], train, valid, test)
+
+    classifiers += [("FCClassifier", lambda: classifier.FCClassifier(train[0][0].size(0), dev=device), fc_args)]
 
     # ~~~~ Collect results ~~~~ #
     print("Collecting results")
@@ -97,8 +101,8 @@ if __name__ == '__main__':
                         csv.write(f",{mean},{std}")
                     csv.write("\n")
                 # csv.write("\n")
-            csv.write("\n")
-        csv.write("\n\n")
+            # csv.write("\n")
+        # csv.write("\n")
 
     # ~~~~ Print results ~~~~ #
     pp = pprint.PrettyPrinter(width=100, compact=True)
