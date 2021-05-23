@@ -1,22 +1,19 @@
 import torch
-
-import fc
 from sklearn.svm import SVC
 
+import fc
 from baselines import Classifier
 from dataset import split_dataset, load_dataset
 from eval import eval
 from extractor import DummyExtractor
+from trainer.trainer import DeepFCTrainer
 
 
 class FCClassifier(Classifier):
-    def __init__(self, input_size, dev):
-        self.dev = dev
-        self.clfs = [fc.DeepFC(in_dim=input_size, device=dev) for _ in range(5)]
-
-    def train(self, x, y, epochs=5, lr=1e-4, batch_size=20, wd=1e-4):
+    def train(self, train_dataloader, valid_dataloader, test_dataloader, params):
+        self.clfs = [fc.DeepFC(params["neurons_per_layer"]) for _ in range(5)]
         for i in range(len(self.clfs)):
-            fc.train(self.clfs[i], x, y[:, i:i+1], self.dev, epochs, lr, batch_size, wd)
+            DeepFCTrainer.train(self.clfs[i], train_dataloader, valid_dataloader, test_dataloader, self.params)
 
     def classify(self, x, y):
         preds = self.clfs[0].forward(x)
