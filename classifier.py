@@ -97,6 +97,39 @@ class CompoundClassifier:
         return preds, true
 
 
+class SVMClassifier(TraitClassifier):
+    def __init__(self, index, **kwargs):
+        super().__init__(index)
+        c, gamma, dfs, kernel = [kwargs[k] for k in ['c', 'gamma', 'decision_function_shape', 'kernel']]
+        self.svm = SVC(kernel=kernel, decision_function_shape=dfs, C=c, gamma=gamma)
+        self.in_dim = kwargs['in_dim']
+
+    def _loader_to_tensor(self, loader):
+        N = len(loader.dataset)
+        x, y = torch.empty((N, self.in_dim)), torch.empty((N, 1))
+        start, end = 0, loader.batch_size
+        for i, batch in enumerate(loader):
+            xb, yb = batch
+            x[start:end] = xb
+            y[start:end] = yb[:, self.index:self.index+1]
+            start, end = end, min(end + len(xb), N)
+        return x, y
+
+    def train(self, data, **kwargs):
+        train, _, _ = data
+        x, y = self._loader_to_tensor(train)
+        np_trx, np_try = x.cpu().numpy(), y.cpu().numpy()
+        self.svm.fit(np_trx, np_try.flatten())
+
+    def forward(self, data):
+        x, y = self._loader_to_tensor(data)
+        np_x = x.cpu().numpy()
+        return torch.from_numpy(self.svm.predict(np_x)), y
+
+    def classify(self, data):
+        return self.forward(data)
+
+
 class FCClassifier(Classifier):
     def train(self, train_dataloader, valid_dataloader, test_dataloader, params):
         self.clfs = [fc.DeepFC(params["neurons_per_layer"]) for _ in range(5)]
@@ -112,31 +145,6 @@ class FCClassifier(Classifier):
 
 class LSTMClassifier(Classifier):
     pass
-
-
-class SVMClassifier(Classifier):
-    """
-    Classifier that creates 5 SVMs to predict each of the traits.
-    """
-
-    def __init__(self, extractor, c=1, gamma="auto", decision_function_shape="ovo", kernel='rbf'):
-        self.extractor = extractor
-        self.clfs = None
-        self.c = c
-        self.gamma = gamma
-        self.kernel = kernel
-        self.decision_function_shape = decision_function_shape
-
-    def train(self, x, y):
-        features = self.extractor.extract(x)
-        self.clfs = [SVC(kernel=self.kernel, decision_function_shape=self.decision_function_shape, C=self.c,
-                         gamma=self.gamma) for _ in range(5)]
-        for i in range(5):
-            self.clfs[i].fit(features, y[:, i])
-
-    def classify(self, example_x, example_y):
-        features = self.extractor.extract([example_x])
-        return [self.clfs[i].predict(features) for i in range(5)]
 
 
 if __name__ == '__main__':
