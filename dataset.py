@@ -106,8 +106,23 @@ def wrap_datasets(batch_size, *datasets):
     return [DataLoader(dataset=d, batch_size=batch_size, shuffle=True) for d in datasets]
 
 
+def extract_frequencies(x):
+    x_frequencies = {}
+
+    for text, label in zip(x, y):
+        words_per_sentence = [word_tokenize(w.lower()) for w in sent_tokenize(text)]
+
+        for words in words_per_sentence:
+            for w in words:
+                x_count = 1 if x_frequencies.get(w) is None else x_frequencies.get(w)
+                x_frequencies[w] = x_count + 1
+    return sorted(x_frequencies.items(), key=lambda a: a[1], reverse=True)
+
 if __name__ == '__main__':
     x, y = load_dataset()
+
+    x_f = extract_frequencies(x)
+    print(x_f)
     assert len(x) == len(y) == 2467
     assert len(y[0]) == 5
     assert (y[0] == torch.tensor([0., 1., 1., 0., 1.])).all()

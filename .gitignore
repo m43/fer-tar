@@ -4,7 +4,7 @@
 
 dataset/essays*.csv
 glove_vecs/*
-Word2Vec/*
+saved/*
 sentences/*
 sent2vec/*
 imgs
