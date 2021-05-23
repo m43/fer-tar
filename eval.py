@@ -3,7 +3,7 @@ from dataset import TRAITS
 TP, FP, FN, TN = 0, 1, 2, 3
 
 
-def eval(classifier, x, y):
+def eval(classifier, data):
     """
     Calculates accuracy, precision, recall and the F1 score of the
     given classifier on the given dataset. The metrics are computed
@@ -20,9 +20,7 @@ def eval(classifier, x, y):
     :return: a dictionary with the format <trait>:<metric_name>:<metric>; dict{str:dict{str:float}}
     """
     # ~~~~~~~~~~~~~~~ GET PREDICTIONS ~~~~~~~~~~~~~~~ #
-    preds = classifier.classify(x, y)
-    preds[preds >= 0] = 1.
-    preds[preds < 0] = 0.
+    preds, true = classifier.classify(data)
     # ~~~~~~~~~~ COMPUTE CONFUSION MATRIX ~~~~~~~~~~~ #
     counts = [
         # TP FP FN TN
@@ -32,8 +30,9 @@ def eval(classifier, x, y):
         [0, 0, 0, 0],  # conscientiousness
         [0, 0, 0, 0]  # openness
     ]
-    for i_ex in range(len(x)):
-        true_lab = y[i_ex]
+    total = len(preds)
+    for i_ex in range(total):
+        true_lab = true[i_ex]
         pred_lab = preds[i_ex]
         for i_tr in range(5):
             if true_lab[i_tr] == 1.:
@@ -50,12 +49,12 @@ def eval(classifier, x, y):
     # ~~~~~~~~~ COMPUTE EVALUATION METRICS ~~~~~~~~~~ #
     scores = {trait: {} for trait in TRAITS}
     for i, trait_counts in enumerate(counts):
-        acc = (trait_counts[TP] + trait_counts[TN]) / len(x)
+        acc = (trait_counts[TP] + trait_counts[TN]) / total
         pre_denom = trait_counts[TP] + trait_counts[FP]
         rec_denom = trait_counts[TP] + trait_counts[FN]
         pre = trait_counts[TP] / pre_denom if pre_denom != 0 else None
         rec = trait_counts[TP] / rec_denom if rec_denom != 0 else None
-        f1 = (2 * pre * rec) / (pre + rec) if pre is not None and rec is not None else None
+        f1 = (2 * pre * rec) / (pre + rec) if pre and rec else None
         scores[TRAITS[i]]["acc"] = acc
         scores[TRAITS[i]]["pre"] = pre
         scores[TRAITS[i]]["rec"] = rec
