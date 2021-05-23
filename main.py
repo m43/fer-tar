@@ -1,9 +1,9 @@
 import pprint
 
 from classifier import CompoundClassifier, FCClassifier, SVMClassifier
-from extractor import *
 from dataset import load_features, TRAITS, wrap_datasets
 from eval import eval
+from extractor import *
 from utils import setup_torch_reproducibility, setup_torch_device, project_path, get_str_formatted_time, ensure_dir
 
 
@@ -41,7 +41,7 @@ if __name__ == '__main__':
     train, valid, test = wrap_datasets(batch_size, train, valid, test)
 
     fc_init = {"neurons_per_layer": [in_dim, 300, 100, 1], "activation_module": torch.nn.ReLU, "device": device}
-    svm_init = {"c": 1, "gamma": "auto", "decision_function_shape": "ovo", "kernel": "rbf", "in_dim":in_dim}
+    svm_init = {"c": 1, "gamma": "auto", "decision_function_shape": "ovo", "kernel": "rbf", "in_dim": in_dim}
 
     clf_hook = lambda: CompoundClassifier([
         (FCClassifier, fc_init), (SVMClassifier, svm_init),

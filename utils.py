@@ -64,6 +64,6 @@ def setup_torch_device(print_logs=True):
     if print_logs:
         print(f"torch.cuda.device_count={torch.cuda.device_count()}")
         print(f"device_ids={device_ids}")
-        print(f"Using device '{device}'")
+        print(f"Using device '{device}'\n")
 
     return device

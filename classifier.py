@@ -1,17 +1,12 @@
 from abc import abstractmethod, ABC
-
-import torch
 from typing import Tuple
 
+import torch
 from sklearn.svm import SVC
+from torch.utils.data import DataLoader
 
 import fc
-from baselines import Classifier
-from dataset import split_dataset, load_dataset
-from eval import eval
-from extractor import DummyExtractor
-
-from torch.utils.data import DataLoader
+from dataset import TRAITS
 
 
 class TraitClassifier(ABC):
@@ -115,7 +110,7 @@ class SVMClassifier(TraitClassifier):
         for i, batch in enumerate(loader):
             xb, yb = batch
             x[start:end] = xb
-            y[start:end] = yb[:, self.index:self.index+1]
+            y[start:end] = yb[:, self.index:self.index + 1]
             start, end = end, min(end + len(xb), N)
         return x, y
 
@@ -155,7 +150,7 @@ class FCClassifier(TraitClassifier):
         with torch.no_grad():
             for i, batch in enumerate(data):
                 x, y = batch
-                true[start:end] = y[:, self.index:self.index+1]
+                true[start:end] = y[:, self.index:self.index + 1]
                 scores[start:end] = self.model.forward(x.to(self.device))
                 start = end
                 end = min(end + data.batch_size, N)
@@ -170,17 +165,20 @@ class FCClassifier(TraitClassifier):
     def __str__(self):
         return f"{self.index + 1}. FCClassifier[{TRAITS[self.index]}]"
 
-class LSTMClassifier(Classifier):
+
+class LSTMClassifier(TraitClassifier):
     pass
 
 
 if __name__ == '__main__':
-    x, y = load_dataset()
-    (train_x, train_y), _, (test_x, test_y) = split_dataset(x, y, 0.3, 0)
-
-    # ~~~~ SVMClassifier ~~~~ #
-    extractor = DummyExtractor(10000)
-    clf = SVMClassifier(extractor)
-    clf.train(x, y)
-    print("Train:", eval(clf, train_x, train_y))
-    print("Test:", eval(clf, test_x, test_y))
+    # TODO: Update test
+    # x, y = load_dataset()
+    # (train_x, train_y), _, (test_x, test_y) = split_dataset(x, y, 0.3, 0)
+    #
+    # # ~~~~ SVMClassifier ~~~~ #
+    # extractor = DummyExtractor(10000)
+    # clf = SVMClassifier(extractor)
+    # clf.train(x, y)
+    # print("Train:", eval(clf, train_x, train_y))
+    # print("Test:", eval(clf, test_x, test_y))
+    pass

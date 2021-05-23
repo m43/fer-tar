@@ -77,7 +77,7 @@ def _train_epoch(model, data, optimizer, criterion, **kwargs):
         batch_sizes.append(len(x))
 
     if kwargs["debug_print"] and "current_epoch" in kwargs.keys():
-        avg_loss = sum([loss*size for loss, size in zip(losses, batch_sizes)]) / sum(batch_sizes)
+        avg_loss = sum([loss * size for loss, size in zip(losses, batch_sizes)]) / sum(batch_sizes)
         print(f"[{kwargs['current_epoch']}/{kwargs['epochs']}] TRAIN LOSS = {avg_loss:3.5f}")
 
 
@@ -94,5 +94,5 @@ def _evaluate(model, data, criterion, **kwargs):
             losses.append(loss)
             batch_sizes.append(len(x))
 
-    loss = sum([loss*size for loss, size in zip(losses, batch_sizes)])/sum(batch_sizes)
+    loss = sum([loss * size for loss, size in zip(losses, batch_sizes)]) / sum(batch_sizes)
     return loss

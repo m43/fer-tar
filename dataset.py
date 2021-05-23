@@ -1,17 +1,17 @@
-import os
 import csv
+import os
 
 import torch
+from nltk.tokenize import word_tokenize, sent_tokenize
 from torch.utils.data import TensorDataset, DataLoader
 
 from utils import project_path
-from nltk.tokenize import word_tokenize, sent_tokenize
 
 DS_PATH = os.path.join(project_path, 'dataset/essays.csv')
 TRAITS = ['ext', 'neu', 'agr', 'con', 'opn']
 
 
-def load_dataset(text_preprocessing_fn = None):
+def load_dataset(text_preprocessing_fn=None):
     """
     Function for loading dataset from .csv file. It reads the .csv file and parses it, thus creating a list of
     all file entries. A entry consists of 7 attributes which are: author, text and bool flags for extroversion,
