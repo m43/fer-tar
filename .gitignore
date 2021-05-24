@@ -2,7 +2,7 @@
 ############### CUSTOM ################
 #######################################
 
-dataset/essays.csv
+dataset/essays*.csv
 glove_vecs/*
 Word2Vec/*
 sentences/*
