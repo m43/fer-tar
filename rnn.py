@@ -15,6 +15,9 @@ class LSTM(nn.Module):
         self.activation_fn = kwargs["activation_fn"]
         softmax_at_end = kwargs["softmax_at_end"]
 
+        assert len(self.rnn_hidden) > 1
+        assert len(self.fc_hidden) > 1
+
         layers = OrderedDict()
         for i in range(1, len(self.rnn_hidden)):
             n_in, n_out = self.rnn_hidden[i - 1], self.rnn_hidden[i]
