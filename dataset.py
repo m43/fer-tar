@@ -4,46 +4,11 @@ import os
 import torch
 from nltk.tokenize import word_tokenize, sent_tokenize
 from torch.utils.data import TensorDataset, DataLoader
-import numpy as np
 
 from utils import project_path
 
 DS_PATH = os.path.join(project_path, 'dataset/essays.csv')
 TRAITS = ['ext', 'neu', 'agr', 'con', 'opn']
-PAD = "<PAD>"
-UNK = "<UNK>"
-
-class Vocab:
-    def __init__(self, frequencies, max_size=-1, min_freq=0):
-        self.itos = [PAD]
-        self.stoi = {PAD: 0}
-
-        i = 1
-        for key, value in frequencies:
-            if max_size != -1 and (i+1) >= max_size or value < min_freq:
-                break
-            self.stoi[key] = i
-            self.itos.append(key)
-            i += 1
-
-        self.itos = np.array(self.itos)
-
-    def encode(self, words):
-        res = []
-        if type(words) is list:
-            for w in words:
-                ind = self.stoi.get(w)
-                if ind is None:
-                    res.append(self.stoi[UNK])
-                else:
-                    res.append(ind)
-        else:
-            ind = self.stoi.get(words)
-            if ind is not None:
-                res.append(self.stoi[UNK])
-            else:
-                res.append(ind)
-        return torch.tensor(res)
 
 
 def load_dataset(text_preprocessing_fn=None):
@@ -141,23 +106,9 @@ def wrap_datasets(batch_size, *datasets):
     return [DataLoader(dataset=d, batch_size=batch_size, shuffle=True) for d in datasets]
 
 
-def extract_frequencies(x):
-    x_frequencies = {}
-
-    for text, label in zip(x, y):
-        words_per_sentence = [word_tokenize(w.lower()) for w in sent_tokenize(text)]
-
-        for words in words_per_sentence:
-            for w in words:
-                x_count = 1 if x_frequencies.get(w) is None else x_frequencies.get(w)
-                x_frequencies[w] = x_count + 1
-    return sorted(x_frequencies.items(), key=lambda a: a[1], reverse=True)
 
 if __name__ == '__main__':
     x, y = load_dataset()
-    x_f = extract_frequencies(x)
-    vocab = Vocab(x_f, min_freq=2)
-    print(len(vocab.itos))
 
     assert len(x) == len(y) == 2467
     assert len(y[0]) == 5
