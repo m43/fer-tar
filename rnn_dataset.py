@@ -6,7 +6,7 @@ import numpy as np
 import torch
 from nltk import word_tokenize
 from torch.nn import Embedding
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, DataLoader
 from torch.utils.data.dataset import T_co
 
 from dataset import load_dataset
@@ -40,7 +40,7 @@ class Instance:
     y: list
 
     def __init__(self, x, y):
-        self.x = word_tokenize(x)
+        self.x = word_tokenize(x.lower())
         self.y = y
 
 
@@ -109,6 +109,27 @@ class Vocab:
         return torch.tensor(res)
 
 
+def pad_collate_fn(batch, pad_index=0):
+
+    texts, labels = zip(*batch)  # Assuming the instance is in tuple-like form
+    lengths = torch.tensor([len(text) for text in texts])  # Needed for later
+
+    max_len = 0
+    for t in texts:
+        if t.shape[0] > max_len:
+            max_len = t.shape[0]
+    texts_tensor = torch.empty((len(texts), max_len), dtype=torch.int)
+    labels_tensor = torch.hstack(labels).reshape(-1, 1).float()
+
+    for i in range(len(texts)):
+        for j in range(len(texts[i])):
+            texts_tensor[i, j] = texts[i][j]
+        for k in range(len(texts[i]), max_len):
+            texts_tensor[i, j] = pad_index
+
+    return texts_tensor, labels_tensor, lengths
+
+
 if __name__ == "__main__":
     ds_x, ds_y = load_dataset()
     print(len(ds_x))
@@ -118,3 +139,7 @@ if __name__ == "__main__":
     print(len(dataset))
 
     embs = load_embeddings(vocab, **{"w2v_limit": None})
+
+    dl = DataLoader(batch_size=16, dataset=dataset, collate_fn=pad_collate_fn)
+    text, _, _ = next(iter(dl))
+    print(text, text.shape)

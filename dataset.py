@@ -102,8 +102,8 @@ def load_features(extractor_hooks, x=None, y=None, **kwargs):
     return train_ds, valid_ds, trainval_ds, test_ds
 
 
-def wrap_datasets(batch_size, *datasets):
-    return [DataLoader(dataset=d, batch_size=batch_size, shuffle=True) for d in datasets]
+def wrap_datasets(batch_size, collate_fn=None, *datasets):
+    return [DataLoader(dataset=d, batch_size=batch_size, collate_fn=collate_fn, shuffle=True) for d in datasets]
 
 
 
