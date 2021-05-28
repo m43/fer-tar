@@ -29,7 +29,7 @@ class DeepFC(nn.Module):
         return self.seq(x)
 
 
-def train(model, train_loader, valid_loader, test_loader, **kwargs):
+def train(model, train_loader, valid_loader, trainval_loader, test_loader, **kwargs):
     optimizer = torch.optim.Adam(model.parameters(), lr=kwargs["lr"], weight_decay=kwargs["wd"])
     criterion = nn.BCEWithLogitsLoss()
 
@@ -40,19 +40,22 @@ def train(model, train_loader, valid_loader, test_loader, **kwargs):
         if kwargs["debug_print"] and epoch % 5 == 0:
             print(f"[{epoch}/{kwargs['epochs']}] VALID LOSS = {valid_loss}")
 
-        if best_loss is None or best_loss > valid_loss + kwargs["early_stopping_epsilon"]:
+        if best_loss is None or best_loss > valid_loss + kwargs["es_epsilon"]:
             best_epoch = epoch
             best_loss = valid_loss
 
-        if kwargs["early_stopping_iters"] != -1 and (epoch - best_epoch) >= kwargs["early_stopping_iters"]:
+        if kwargs["es_patience"] != -1 and (epoch - best_epoch) >= kwargs["es_patience"]:
             if kwargs["debug_print"]:
                 print(f"EARLY STOPPING. epoch={epoch}")
             break
 
-    model.reset_params()
-    for epoch in range(1, best_epoch + 1):
-        _train_epoch(model, train_loader, optimizer, criterion, **kwargs)
-        _train_epoch(model, valid_loader, optimizer, criterion, **kwargs)
+    train_loss = _evaluate(model, train_loader, criterion, **kwargs)
+    valid_loss = train_loss + 42    # 42 chosen randomly, valid_loss just has to be bigger than train_loss
+    e = 0
+    while valid_loss > train_loss and e < kwargs["es_maxiter"]:
+        _train_epoch(model, trainval_loader, optimizer, criterion, **kwargs)
+        valid_loss = _evaluate(model, valid_loader, criterion, **kwargs)
+        e += 1
 
     test_loss = _evaluate(model, test_loader, criterion, **kwargs)
     if kwargs["debug_print"]:
