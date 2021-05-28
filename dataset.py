@@ -69,10 +69,12 @@ def load_features(extractor_hooks, x=None, y=None, **kwargs):
                                                              valid_ratio=kwargs['valid_ratio'])
     print("DONE")
 
-    print("Tokenizing essays...", end=' ')
+    print("Tokenizing essays into sentence-level tokens...", end=' ')
     sen_trnx = [sent_tokenize(xi) for xi in trnx]
     sen_valx = [sent_tokenize(xi) for xi in valx]
     sen_tesx = [sent_tokenize(xi) for xi in tesx]
+    print("DONE")
+    print("Tokenizing essays into word-level tokens...", end=' ')
     tok_trnx = [word_tokenize(xi.lower()) for xi in trnx]
     tok_valx = [word_tokenize(xi.lower()) for xi in valx]
     tok_tesx = [word_tokenize(xi.lower()) for xi in tesx]
