@@ -96,9 +96,10 @@ def load_features(extractor_hooks, x=None, y=None, **kwargs):
 
     train_ds = TensorDataset(trn_feats, trny)
     valid_ds = TensorDataset(val_feats, valy)
+    trainval_ds = TensorDataset(torch.cat((trn_feats, val_feats), dim=0), torch.cat((trny, valy), dim=0))
     test_ds = TensorDataset(tes_feats, tesy)
 
-    return train_ds, valid_ds, test_ds
+    return train_ds, valid_ds, trainval_ds, test_ds
 
 
 def wrap_datasets(batch_size, *datasets):
