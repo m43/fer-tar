@@ -16,7 +16,7 @@ def welcome():
 if __name__ == '__main__':
     welcome()
     # ~~~~ Config ~~~~ #
-    n_runs = 5  # How many times will each model be run, used to calculate std. dev.
+    n_runs = 10  # How many times will each model be run, used to calculate std. dev.
     seed = 72  # Initial seed, used to setup reproducibility
     time_str = get_str_formatted_time()  # string time identifier
     test_ratio, val_ratio = 0.2, 0.2
@@ -35,22 +35,23 @@ if __name__ == '__main__':
         's2v_fit_raw': True, 'wiki': False,
         'w2v_limit': 1000000
     }
-    ext_hooks = (InterpunctionExtractor, RepeatingLettersExtractor, CapitalizationExtractor, WordCountExtractor)
-    train, valid, test = load_features(ext_hooks, **extract_cfg)
+    ext_hooks = (InterpunctionExtractor, RepeatingLettersExtractor, CapitalizationExtractor, WordCountExtractor,
+                 W2VExtractor)
+    train, valid, trainval, test = load_features(ext_hooks, **extract_cfg)
     in_dim = len(train[0][0])
-    train, valid, test = wrap_datasets(batch_size, train, valid, test)
+    train, valid, trainval, test = wrap_datasets(batch_size, train, valid, trainval, test)
 
     fc_init = {"neurons_per_layer": [in_dim, 300, 100, 1], "activation_module": torch.nn.ReLU, "device": device}
     svm_init = {"c": 1, "gamma": "auto", "decision_function_shape": "ovo", "kernel": "rbf", "in_dim": in_dim}
 
     clf_hook = lambda: CompoundClassifier([
-        (FCClassifier, fc_init), (SVMClassifier, svm_init),
+        (FCClassifier, fc_init), (FCClassifier, fc_init),
         (FCClassifier, fc_init), (FCClassifier, fc_init),
         (FCClassifier, fc_init)
     ])
-    clf_short_name = "FC-SVM-FC-FC-FC"
+    clf_short_name = "SVM-SVM-SVM-SVM-SVM(W2V+Custom)"
 
-    train_args = {"epochs": 20, "lr": 1e-4, "wd": 0, "early_stopping_iters": 5, "early_stopping_epsilon": 1e-7,
+    train_args = {"epochs": 20, "lr": 1e-4, "wd": 1e-5, "es_patience": 5, "es_epsilon": 1e-7, "es_maxiter": 30,
                   "device": device, "debug_print": True}
 
     # ~~~~ Collect results ~~~~ #
@@ -61,7 +62,7 @@ if __name__ == '__main__':
         print(f"i::[{i + 1}/{n_runs}] started")
         print("Using classifier " + str(clf))
 
-        clf.train((train, valid, test), **train_args)
+        clf.train((train, valid, trainval, test), **train_args)
 
         for subset_name, subset in [("train", train), ("test", test)]:
             if subset_name not in results:

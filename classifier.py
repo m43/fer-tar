@@ -25,12 +25,16 @@ class TraitClassifier(ABC):
         self.index = index
 
     @abstractmethod
-    def train(self, data: Tuple[DataLoader, DataLoader, DataLoader], **kwargs):
+    def train(self, data: Tuple[DataLoader, DataLoader, DataLoader, DataLoader], **kwargs):
         """
-        Trains the classifier on the given data which includes a train,
-        validation and test splits.
+        Trains the classifier on one of the dataset splits provided in the data tuple.
+        The indices of elements in the tuple correspond to the following splits:
+            0   -   train split
+            1   -   validation split
+            2   -   train+validation split
+            3   -   test split
 
-        :param data: tuple of three datasets (train, valid, test); tuple(torch.DataLoader)
+        :param data: tuple of four datasets (train, valid, trainval, test); tuple(torch.DataLoader)
         :param kwargs: possible additional arguments; dict{str:Any}
         :return: None
         """
@@ -115,8 +119,8 @@ class SVMClassifier(TraitClassifier):
         return x, y
 
     def train(self, data, **kwargs):
-        train, _, _ = data
-        x, y = self._loader_to_tensor(train)
+        _, _, trainval, _ = data
+        x, y = self._loader_to_tensor(trainval)
         np_trx, np_try = x.cpu().numpy(), y.cpu().numpy()
         self.svm.fit(np_trx, np_try.flatten())
 
@@ -139,8 +143,8 @@ class FCClassifier(TraitClassifier):
         self.device = kwargs['device']
 
     def train(self, data, **kwargs):
-        train, valid, test = data
-        fc.train(self.model, train, valid, test, index=self.index, **kwargs)
+        train, valid, trainval, test = data
+        fc.train(self.model, train, valid, trainval, test, index=self.index, **kwargs)
 
     def forward(self, data: DataLoader):
         N = len(data.dataset)
