@@ -9,7 +9,7 @@ from torch.nn import Embedding
 from torch.utils.data import Dataset, DataLoader
 from torch.utils.data.dataset import T_co
 
-from dataset import load_dataset
+from dataset import load_dataset, split_dataset
 from extractor import W2V_GOOGLE_NEWS_PATH
 
 PAD = "<PAD>"
@@ -30,6 +30,8 @@ def load_embeddings(vocab, **kwargs):
         word = vocab.itos[i]
         if word in model.vocab:
             embeddings.append(torch.tensor(model[word]))
+        else:
+            embeddings.append(torch.randn(300))
 
     return Embedding.from_pretrained(torch.stack(embeddings), padding_idx=0)
 
@@ -95,18 +97,34 @@ class Vocab:
         res = []
         if type(words) is list:
             for w in words:
-                ind = self.stoi.get(w)
-                if ind is None:
-                    res.append(self.stoi[UNK])
-                else:
-                    res.append(ind)
-        else:
-            ind = self.stoi.get(words)
-            if ind is not None:
-                res.append(self.stoi[UNK])
-            else:
+                ind = self.stoi.get(w, self.stoi[UNK])
                 res.append(ind)
+        else:
+            ind = self.stoi.get(words, self.stoi[UNK])
+            res.append(ind)
         return torch.tensor(res)
+
+
+def load_RNNfeatures(x=None, y=None, **kwargs):
+    if x is None and y is None:
+        print("Loading dataset from CSV file...", end=' ')
+        x, y = load_dataset()
+        print("DONE")
+
+    print("Creating train/valid/test splits...", end=' ')
+    (trnx, trny), (valx, valy), (tesx, tesy) = split_dataset(x, y, test_ratio=kwargs['test_ratio'],
+                                                             valid_ratio=kwargs['valid_ratio'])
+    print("DONE")
+
+    print("Building vocabulary...", end=' ')
+    vocab = Vocab(extract_frequencies(trnx), min_freq=2)  #TODO build on trainval?
+    print("DONE")
+
+    train_ds = NLPDataset(trnx, trny, vocab)
+    valid_ds = NLPDataset(valx, valy, vocab)
+    test_ds = NLPDataset(tesx, tesy, vocab)
+
+    return train_ds, valid_ds, test_ds, vocab
 
 
 def pad_collate_fn(batch, pad_index=0):
@@ -118,14 +136,14 @@ def pad_collate_fn(batch, pad_index=0):
     for t in texts:
         if t.shape[0] > max_len:
             max_len = t.shape[0]
-    texts_tensor = torch.empty((len(texts), max_len), dtype=torch.int)
-    labels_tensor = torch.hstack(labels).reshape(-1, 1).float()
+    texts_tensor = torch.zeros((len(texts), max_len), dtype=torch.int)
+    labels_tensor = torch.vstack(labels)
 
     for i in range(len(texts)):
         for j in range(len(texts[i])):
             texts_tensor[i, j] = texts[i][j]
         for k in range(len(texts[i]), max_len):
-            texts_tensor[i, j] = pad_index
+            texts_tensor[i, k] = pad_index
 
     return texts_tensor, labels_tensor, lengths
 

@@ -6,7 +6,9 @@ from sklearn.svm import SVC
 from torch.utils.data import DataLoader
 
 import fc
+import rnn
 from dataset import TRAITS
+from rnn import LSTM
 
 
 class TraitClassifier(ABC):
@@ -171,7 +173,38 @@ class FCClassifier(TraitClassifier):
 
 
 class LSTMClassifier(TraitClassifier):
-    pass
+    def __init__(self, index, **kwargs):
+        super().__init__(index)
+        self.model = LSTM(**kwargs)
+        self.device = kwargs['device']
+
+    def train(self, data, **kwargs):
+        train, valid, test = data
+        rnn.train(self.model, train, valid, test, index=self.index, **kwargs)
+
+    def forward(self, data: DataLoader):
+        N = len(data.dataset)
+        scores = torch.zeros((N, 1))
+        true = torch.zeros((N, 1))
+        start, end = 0, data.batch_size
+        with torch.no_grad():
+            for i, batch in enumerate(data):
+                x, y, _ = batch
+                true[start:end] = y[:, self.index:self.index+1]
+                scores[start:end] = self.model.forward(x.to(self.device))
+                start = end
+                end = min(end + data.batch_size, N)
+        return scores, true
+
+    def classify(self, data):
+        scores, true = self.forward(data)
+        scores[scores >= 0] = 1.
+        scores[scores < 0] = 0.
+        return scores, true
+
+    def __str__(self):
+        return f"{self.index + 1}. LSTMClassifier[{TRAITS[self.index]}]"
+
 
 
 if __name__ == '__main__':
