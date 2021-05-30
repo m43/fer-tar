@@ -122,9 +122,12 @@ def load_RNNfeatures(x=None, y=None, **kwargs):
 
     train_ds = NLPDataset(trnx, trny, vocab)
     valid_ds = NLPDataset(valx, valy, vocab)
+
+    trainval_ds = NLPDataset(trnx + valx, torch.cat((trny, valy), dim=0), vocab)
+
     test_ds = NLPDataset(tesx, tesy, vocab)
 
-    return train_ds, valid_ds, test_ds, vocab
+    return train_ds, valid_ds, trainval_ds, test_ds, vocab
 
 
 def pad_collate_fn(batch, pad_index=0):

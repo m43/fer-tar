@@ -179,8 +179,8 @@ class LSTMClassifier(TraitClassifier):
         self.device = kwargs['device']
 
     def train(self, data, **kwargs):
-        train, valid, test = data
-        rnn.train(self.model, train, valid, test, index=self.index, **kwargs)
+        train, valid, trainval, test = data
+        rnn.train(self.model, train, valid, trainval, test, index=self.index, **kwargs)
 
     def forward(self, data: DataLoader):
         N = len(data.dataset)
