@@ -21,6 +21,13 @@ RE_DELIM = f', '
 
 
 def load_embeddings(vocab, **kwargs):
+    """
+    Function used for loading pretrained word2vec embeddings.
+
+    :param vocab: Vocabulary containing known words whose embeddings are to be loaded.
+    :param kwargs: Additional arguments.
+    :return: embedding layer: Embedding
+    """
     embeddings = [torch.zeros(300), torch.randn(300)]  # padding embedding and unknown embedding
 
     model = gensim.models.KeyedVectors.load_word2vec_format(W2V_GOOGLE_NEWS_PATH,
@@ -39,6 +46,10 @@ def load_embeddings(vocab, **kwargs):
 
 @dataclass()
 class Instance:
+    """
+    Class used for modeling single data instance. It consists of list of word tokens from raw essay and corresponding
+    labels.
+    """
     x: list
     y: list
 
@@ -48,7 +59,17 @@ class Instance:
 
 
 class NLPDataset(Dataset):
+    """
+    Class used for modeling essay dataset.
+    """
     def __init__(self, x, y, vocabulary):
+        """
+        Initialization method.
+
+        :param x: List of raw essays.
+        :param y: List of accompanying labels.
+        :param vocabulary: Vocabulary containing known words.
+        """
         self.txt_vocab = vocabulary
         self.instances = []
         for x_i, y_i in zip(x, y):
@@ -56,16 +77,31 @@ class NLPDataset(Dataset):
         self.len = len(self.instances)
 
     def __getitem__(self, index) -> T_co:
+        """
+        Returns a single instance at given index.
+        :param index: index of the desired instance.
+        :return: embedding indices corresponding to the desired essay word tokens and labels: tuple(list[int], list)
+        """
         if index < 0 or index >= self.len:
             raise IndexError(f"Invalid index {index} for array of len {self.len}")
         x, y = self.instances[index]
         return self.txt_vocab.encode(x), y
 
     def __len__(self):
+        """
+        Method used for retrieving number of instances.
+        :return: Number of dataset instances: int
+        """
         return self.len
 
 
 def extract_frequencies(x):
+    """
+    Method used for extracting word occurrences in the list of raw essays.
+    :param x: list of raw essays:
+    :return: dictionary which maps number of occurrences to each word token, sorted in descending order according to
+    number of occurrences
+    """
     x_frequencies = {}
 
     for text in x:
@@ -80,7 +116,18 @@ def extract_frequencies(x):
 
 
 class Vocab:
+    """
+    Class which models a vocabulary of known words and their indices.
+    """
     def __init__(self, frequencies, max_size=-1, min_freq=0):
+        """
+        Initialization method.
+
+        :param frequencies: dictionary containing known words and their occurrences: dict
+        :param max_size: maximum number of words to be kept, if -1 is passed then there is no limit on the number of
+        words to be kept: int
+        :param min_freq: minimum number of word occurrences needed for the word to be considered relevant: int
+        """
         self.itos = [PAD, UNK]
         self.stoi = {PAD: 0, UNK: 1}
 
@@ -95,6 +142,11 @@ class Vocab:
         self.itos = np.array(self.itos)
 
     def encode(self, words):
+        """
+        Method used for retrieving embedding indices for each input word.
+        :param words: list of input word tokens or a single word token
+        :return: list containing embedding indices: list[int]
+        """
         res = []
         if type(words) is list:
             for w in words:
@@ -106,7 +158,15 @@ class Vocab:
         return torch.tensor(res)
 
 
-def load_RNNfeatures(x=None, y=None, **kwargs):
+def load_rnn_features(x=None, y=None, **kwargs):
+    """
+    Method used for loading rnn dataset and splitting that dataset into train, validation, train-validation and test
+    dataset.
+    :param x: loaded list of essays
+    :param y: loaded list of labels
+    :param kwargs: additional parameters.
+    :return: tuple containing loaded and split datasets and vocabulary constructed over train dataset
+    """
     if x is None and y is None:
         print("Loading dataset from CSV file...", end=' ')
         x, y = load_dataset()
@@ -132,6 +192,12 @@ def load_RNNfeatures(x=None, y=None, **kwargs):
 
 
 def pad_collate_fn(batch, pad_index=0):
+    """
+    Collate function used for padding input list of embedding indices to tensor of same shape.
+    :param batch: essays and labels
+    :param pad_index: embedding index to be used for padding
+    :return: padded essay tensor, labels tensor and original essay lengths
+    """
 
     texts, labels = zip(*batch)  # Assuming the instance is in tuple-like form
     lengths = torch.tensor([len(text) for text in texts])  # Needed for later
