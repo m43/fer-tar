@@ -179,10 +179,13 @@ class LSTMClassifier(TraitClassifier):
         self.device = kwargs['device']
 
     def train(self, data, **kwargs):
+        self.model.to(self.device)
         train, valid, trainval, test = data
         rnn.train(self.model, train, valid, trainval, test, index=self.index, **kwargs)
+        self.model.to(torch.device("cpu"))
 
     def forward(self, data: DataLoader):
+        self.model.to(self.device)
         N = len(data.dataset)
         scores = torch.zeros((N, 1))
         true = torch.zeros((N, 1))
@@ -194,12 +197,15 @@ class LSTMClassifier(TraitClassifier):
                 scores[start:end] = self.model.forward(x.to(self.device))
                 start = end
                 end = min(end + data.batch_size, N)
+        self.model.to(torch.device("cpu"))
         return scores, true
 
     def classify(self, data):
+        self.model.to(self.device)
         scores, true = self.forward(data)
         scores[scores >= 0] = 1.
         scores[scores < 0] = 0.
+        self.model.to(torch.device("cpu"))
         return scores, true
 
     def __str__(self):

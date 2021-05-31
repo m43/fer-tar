@@ -50,11 +50,12 @@ class LSTMWrapper(nn.Module):
         self.bidirectional = kwargs["bidirectional"]
 
         self.lstm = nn.LSTM(input_size=n_in, hidden_size=n_out, num_layers=self.num_layers,
-                            bidirectional=self.bidirectional, batch_first=True)
+                            bidirectional=self.bidirectional, batch_first=False)
 
-    def forward(self, input):
-        out, _ = self.lstm(input)
-        return out[:, -1, :]
+    def forward(self, x):
+        x_sequence_first = torch.transpose(x, dim0=0, dim1=1)  # transposing from BxTxD to TxBxD
+        out, _ = self.lstm(x_sequence_first)
+        return out[-1, :, :]
 
     def reset_params(self):
         self.lstm.reset_parameters()
@@ -85,7 +86,7 @@ def train(model, train_loader, valid_loader, trainval_loader, test_loader, **kwa
     e = 0
 
     while valid_loss > train_loss and e < kwargs["es_maxiter"]:
-        _train_epoch(model, trainval_loader, optimizer, criterion, **kwargs)
+        _train_epoch(model, trainval_loader, optimizer, criterion, e,  **kwargs)
         valid_loss = _evaluate(model, valid_loader, criterion, **kwargs)
         e += 1
 
@@ -94,7 +95,7 @@ def train(model, train_loader, valid_loader, trainval_loader, test_loader, **kwa
         print(f"[FINISHED] TEST LOSS = {test_loss}")
 
 
-def _train_epoch(model, data, optimizer, criterion, **kwargs):
+def _train_epoch(model, data, optimizer, criterion, current_epoch, **kwargs):
     model.train()
     losses, batch_sizes = [], []
     for batch_num, (x, y, _) in enumerate(data):
@@ -111,9 +112,9 @@ def _train_epoch(model, data, optimizer, criterion, **kwargs):
         losses.append(loss)
         batch_sizes.append(len(x))
 
-    if kwargs["debug_print"] and "current_epoch" in kwargs.keys():
+    if kwargs["debug_print"]:
         avg_loss = sum([loss * size for loss, size in zip(losses, batch_sizes)]) / sum(batch_sizes)
-        print(f"[{kwargs['current_epoch']}/{kwargs['epochs']}] TRAIN LOSS = {avg_loss:3.5f}")
+        print(f"[{current_epoch}/{kwargs['epochs']}] TRAIN LOSS = {avg_loss:3.5f}")
 
 
 def _evaluate(model, data, criterion, **kwargs):

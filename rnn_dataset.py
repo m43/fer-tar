@@ -6,6 +6,7 @@ import numpy as np
 import torch
 from nltk import word_tokenize
 from torch.nn import Embedding
+from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import Dataset, DataLoader
 from torch.utils.data.dataset import T_co
 
@@ -117,7 +118,7 @@ def load_RNNfeatures(x=None, y=None, **kwargs):
     print("DONE")
 
     print("Building vocabulary...", end=' ')
-    vocab = Vocab(extract_frequencies(trnx), min_freq=2)  #TODO build on trainval?
+    vocab = Vocab(extract_frequencies(trnx), max_size=kwargs["max_size"], min_freq=kwargs["min_freq"])
     print("DONE")
 
     train_ds = NLPDataset(trnx, trny, vocab)
@@ -135,18 +136,8 @@ def pad_collate_fn(batch, pad_index=0):
     texts, labels = zip(*batch)  # Assuming the instance is in tuple-like form
     lengths = torch.tensor([len(text) for text in texts])  # Needed for later
 
-    max_len = 0
-    for t in texts:
-        if t.shape[0] > max_len:
-            max_len = t.shape[0]
-    texts_tensor = torch.zeros((len(texts), max_len), dtype=torch.int)
+    texts_tensor = pad_sequence(list(texts), padding_value=pad_index, batch_first=True)
     labels_tensor = torch.vstack(labels)
-
-    for i in range(len(texts)):
-        for j in range(len(texts[i])):
-            texts_tensor[i, j] = texts[i][j]
-        for k in range(len(texts[i]), max_len):
-            texts_tensor[i, k] = pad_index
 
     return texts_tensor, labels_tensor, lengths
 
