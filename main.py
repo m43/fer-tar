@@ -1,9 +1,10 @@
 import pprint
 
-from classifier import CompoundClassifier, FCClassifier, SVMClassifier
+from classifier import CompoundClassifier, FCClassifier, SVMClassifier, LSTMClassifier
 from dataset import load_features, TRAITS, wrap_datasets
 from eval import eval
 from extractor import *
+from rnn_dataset import load_RNNfeatures, load_embeddings, pad_collate_fn
 from utils import setup_torch_reproducibility, setup_torch_device, project_path, get_str_formatted_time, ensure_dir
 
 
@@ -27,32 +28,65 @@ if __name__ == '__main__':
     # ~~~~ Setup ~~~~ #
     device = setup_torch_device()
     setup_torch_reproducibility(seed)
-    batch_size = 16
-    extract_cfg = {
-        'valid_ratio': val_ratio, 'test_ratio': test_ratio,
-        'device': device,
-        'bow_fit_raw': True,
-        's2v_fit_raw': True, 'wiki': False,
-        'w2v_limit': 1000000
-    }
-    ext_hooks = (InterpunctionExtractor, RepeatingLettersExtractor, CapitalizationExtractor, WordCountExtractor,
-                 W2VExtractor)
-    train, valid, trainval, test = load_features(ext_hooks, **extract_cfg)
-    in_dim = len(train[0][0])
-    train, valid, trainval, test = wrap_datasets(batch_size, train, valid, trainval, test)
+    batch_size = 2
 
-    fc_init = {"neurons_per_layer": [in_dim, 300, 100, 1], "activation_module": torch.nn.ReLU, "device": device}
-    svm_init = {"c": 1, "gamma": "auto", "decision_function_shape": "ovo", "kernel": "rbf", "in_dim": in_dim}
+    use_lstm = True
 
-    clf_hook = lambda: CompoundClassifier([
-        (FCClassifier, fc_init), (FCClassifier, fc_init),
-        (FCClassifier, fc_init), (FCClassifier, fc_init),
-        (FCClassifier, fc_init)
-    ])
-    clf_short_name = "SVM-SVM-SVM-SVM-SVM(W2V+Custom)"
+    if use_lstm:
+        # ~~~~ LSTM setup ~~~~ #
 
-    train_args = {"epochs": 20, "lr": 1e-4, "wd": 1e-5, "es_patience": 5, "es_epsilon": 1e-7, "es_maxiter": 30,
+        extract_cfg = {
+            'valid_ratio': val_ratio, 'test_ratio': test_ratio,
+            'device': device,
+            "min_freq": 2,
+            "max_size": -1,
+            'w2v_limit': 1000000
+        }
+
+        train, valid, trainval, test, vocab = load_RNNfeatures(**extract_cfg)
+        in_dim = len(train[0][0])
+        train, valid, trainval, test, = wrap_datasets(
+            batch_size, pad_collate_fn, train, valid, trainval, test)
+        embeddings = load_embeddings(vocab, **extract_cfg)
+        rnn_init = {"rnn_layers": 1, "rnn_hidden": [300, 150], "bidirectional": True, "fc_hidden": [300, 150, 1],
+                    "activation_fn": torch.nn.ReLU, "device": device, "embeddings": embeddings, "clip": 0.5}
+
+        clf_hook = lambda: CompoundClassifier([
+            (LSTMClassifier, rnn_init), (LSTMClassifier, rnn_init),
+            (LSTMClassifier, rnn_init), (LSTMClassifier, rnn_init),
+            (LSTMClassifier, rnn_init)
+        ])
+        clf_short_name = "LSTM-LSTM-LSTM-LSTM-LSTM"
+    else:
+        # ~~~~ FC & SVM setup ~~~~ #
+
+        extract_cfg = {
+            'valid_ratio': val_ratio, 'test_ratio': test_ratio,
+            'device': device,
+            'bow_fit_raw': True,
+            's2v_fit_raw': True, 'wiki': False,
+            'w2v_limit': 1000000
+        }
+        ext_hooks = (InterpunctionExtractor, RepeatingLettersExtractor, CapitalizationExtractor, WordCountExtractor,
+                     W2VExtractor)
+        train, valid, trainval, test = load_features(ext_hooks, **extract_cfg)
+        in_dim = len(train[0][0])
+        train, valid, trainval, test = wrap_datasets(batch_size, train, valid, trainval, test)
+
+        fc_init = {"neurons_per_layer": [in_dim, 300, 100, 1], "activation_module": torch.nn.ReLU, "device": device}
+        svm_init = {"c": 1, "gamma": "auto", "decision_function_shape": "ovo", "kernel": "rbf", "in_dim": in_dim}
+
+        clf_hook = lambda: CompoundClassifier([
+            (FCClassifier, fc_init), (FCClassifier, fc_init),
+            (FCClassifier, fc_init), (FCClassifier, fc_init),
+            (FCClassifier, fc_init)
+        ])
+        clf_short_name = "SVM-SVM-SVM-SVM-SVM(W2V+Custom)"
+
+    train_args = {"epochs": 20, "lr": 1e-3, "wd": 1e-5, "es_patience": 5, "es_epsilon": 1e-7, "es_maxiter": 30,
                   "device": device, "debug_print": True}
+
+    data_loaders = (train, valid, trainval, test)
 
     # ~~~~ Collect results ~~~~ #
     print("\nCollecting results")
@@ -62,9 +96,9 @@ if __name__ == '__main__':
         print(f"i::[{i + 1}/{n_runs}] started")
         print("Using classifier " + str(clf))
 
-        clf.train((train, valid, trainval, test), **train_args)
+        clf.train(data_loaders, **train_args)
 
-        for subset_name, subset in [("train", train), ("test", test)]:
+        for subset_name, subset in [("train", data_loaders[0]), ("test", data_loaders[-1])]:
             if subset_name not in results:
                 results[subset_name] = {}
             eval_results = eval(clf, subset)
