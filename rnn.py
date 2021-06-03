@@ -8,19 +8,16 @@ class LSTM(nn.Module):
 
     def __init__(self, **kwargs):
         super(LSTM, self).__init__()
-        self.rnn_hidden = kwargs["rnn_hidden"]
         self.fc_hidden = kwargs["fc_hidden"]
         self.activation_fn = kwargs["activation_fn"]
 
-        assert len(self.rnn_hidden) > 1
         assert len(self.fc_hidden) > 1
 
         layers = OrderedDict()
-        layers[f"embeddings"] = kwargs['embeddings']
+        if 'embeddings' in kwargs:
+            layers[f"embeddings"] = kwargs['embeddings']
 
-        for i in range(1, len(self.rnn_hidden)):
-            n_in, n_out = self.rnn_hidden[i - 1], self.rnn_hidden[i]
-            layers[f"lstm_{i}"] = LSTMWrapper(n_in, n_out, **kwargs)
+        layers[f"lstm"] = LSTMWrapper(**kwargs)
 
         for i in range(1, len(self.fc_hidden)):
             n_in, n_out = self.fc_hidden[i - 1], self.fc_hidden[i]
@@ -44,12 +41,13 @@ class LSTM(nn.Module):
 
 
 class LSTMWrapper(nn.Module):
-    def __init__(self, n_in, n_out, **kwargs):
+    def __init__(self, **kwargs):
         super(LSTMWrapper, self).__init__()
+        d_in, d_out = kwargs['rnn_dims']
         self.num_layers = kwargs["rnn_layers"]
         self.bidirectional = kwargs["bidirectional"]
 
-        self.lstm = nn.LSTM(input_size=n_in, hidden_size=n_out, num_layers=self.num_layers,
+        self.lstm = nn.LSTM(input_size=d_in, hidden_size=d_out, num_layers=self.num_layers,
                             bidirectional=self.bidirectional, batch_first=False)
 
     def forward(self, x):

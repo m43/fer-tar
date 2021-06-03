@@ -1,10 +1,13 @@
 import re
 from dataclasses import astuple, dataclass
+import os
 
+from utils import project_path
 import gensim
+import sent2vec
 import numpy as np
 import torch
-from nltk import word_tokenize
+from nltk import word_tokenize, sent_tokenize
 from torch.nn import Embedding
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import Dataset, DataLoader
@@ -18,6 +21,10 @@ UNK = "<UNK>"
 
 RE_WSPACE = f'\\s+'
 RE_DELIM = f', '
+
+# Sent2vec Pre-Trained Models from https://github.com/epfml/sent2vec/)
+S2V_WIKI_UNGIRAMS_PATH = os.path.join(project_path, "saved/s2v/wiki_unigrams.bin")
+S2V_TORONTO_UNIGRAMS_PATH = os.path.join(project_path, "saved/s2v/torontobooks_unigrams.bin")
 
 
 def load_embeddings(vocab, **kwargs):
@@ -92,6 +99,38 @@ class NLPDataset(Dataset):
         Method used for retrieving number of instances.
         :return: Number of dataset instances: int
         """
+        return self.len
+
+
+def load_s2v(wiki=True):
+    s2v = sent2vec.Sent2vecModel()
+    print(f"Loading pretrained ({'wiki' if wiki else 'toronto'}) S2V vectors...", end=' ')
+    s2v.load_model(S2V_WIKI_UNGIRAMS_PATH if wiki else S2V_TORONTO_UNIGRAMS_PATH)
+    print("DONE")
+    return s2v, 600 if wiki else 700
+
+
+class S2VDataset(Dataset):
+    def __init__(self, x, y, s2v, shape):
+        self.s2v = s2v
+        self.shape = shape
+        self.len = len(x)
+        self.x, self.y = self.build(x, y)
+
+    def build(self, x, y):
+        x_emb = []
+        for i, sentences in enumerate(x):
+            emb_sents = torch.tensor(self.s2v.embed_sentences(sentences))   # N(sent) x 700 or 600
+            x_emb.append(emb_sents)
+        return x_emb, y
+
+    def __getitem__(self, item):
+        if item < 0 or item >= self.len:
+            raise IndexError(f"Invalid index {item} for array of len {self.len}")
+        x, y = self.x[item], self.y[item]
+        return x, y
+
+    def __len__(self):
         return self.len
 
 
@@ -177,16 +216,26 @@ def load_rnn_features(x=None, y=None, **kwargs):
                                                              valid_ratio=kwargs['valid_ratio'])
     print("DONE")
 
-    print("Building vocabulary...", end=' ')
-    vocab = Vocab(extract_frequencies(trnx), max_size=kwargs["max_size"], min_freq=kwargs["min_freq"])
-    print("DONE")
+    if kwargs['s2v']:
+        vocab = None
+        trn_sent, val_sent, tes_sent = [[sent_tokenize(ex.lower()) for ex in ds] for ds in [trnx, valx, tesx]]
+        trnval_sent = trn_sent + val_sent
+        s2v, dims = load_s2v(kwargs['wiki'])
 
-    train_ds = NLPDataset(trnx, trny, vocab)
-    valid_ds = NLPDataset(valx, valy, vocab)
+        train_ds = S2VDataset(trn_sent, trny, s2v, dims)
+        valid_ds = S2VDataset(val_sent, valy, s2v, dims)
+        trainval_ds = S2VDataset(trnval_sent, torch.cat((trny, valy), dim=0), s2v, dims)
+        test_ds = S2VDataset(tes_sent, tesy, s2v, dims)
 
-    trainval_ds = NLPDataset(trnx + valx, torch.cat((trny, valy), dim=0), vocab)
+    else:
+        print("Building vocabulary...", end=' ')
+        vocab = Vocab(extract_frequencies(trnx), max_size=kwargs["max_size"], min_freq=kwargs["min_freq"])
+        print("DONE")
 
-    test_ds = NLPDataset(tesx, tesy, vocab)
+        train_ds = NLPDataset(trnx, trny, vocab)
+        valid_ds = NLPDataset(valx, valy, vocab)
+        trainval_ds = NLPDataset(trnx + valx, torch.cat((trny, valy), dim=0), vocab)
+        test_ds = NLPDataset(tesx, tesy, vocab)
 
     return train_ds, valid_ds, trainval_ds, test_ds, vocab
 
