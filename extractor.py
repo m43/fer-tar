@@ -54,22 +54,13 @@ class DummyExtractor(FeatureExtractor):
 
 class BOWExtractor(FeatureExtractor):
     def __init__(self, **kwargs):
-        self.fit_raw = kwargs['bow_fit_raw']
         self.vectorizer = TfidfVectorizer()
-
-        if self.fit_raw:
-            print("\tFitting TF-IDF Extractor to raw text...", end=' ')
-            self.vectorizer.fit(kwargs['train_raw'])
-        else:
-            print("\tFitting TF-IDF Extractor to tokenized text...", end=' ')
-            self.vectorizer.fit([' '.join(tokens) for tokens in kwargs['train_tok']])
+        print("\tFitting TF-IDF Extractor to tokenized text...", end=' ')
+        self.vectorizer.fit([' '.join(tokens) for tokens in kwargs['train_tok']])
         print("DONE")
 
     def extract(self, x_raw, x_tok, x_sen, **kwargs):
-        if self.fit_raw:
-            coo = self.vectorizer.transform(x_raw).tocoo()
-        else:
-            coo = self.vectorizer.transform([' '.join(tokens) for tokens in x_tok]).tocoo()
+        coo = self.vectorizer.transform([' '.join(tokens) for tokens in x_tok]).tocoo()
 
         values = coo.data
         indices = np.vstack((coo.row, coo.col))
@@ -110,21 +101,13 @@ class S2VExtractor(FeatureExtractor):
         print("\tLoading pretrained S2V vectors...", end=' ')
         self.model.load_model(S2V_WIKI_UNGIRAMS_PATH if kwargs['wiki'] else S2V_TORONTO_UNIGRAMS_PATH)
         print("DONE")
-        self.fit_raw = kwargs['s2v_fit_raw']
 
     def extract(self, x_raw, x_tok, x_sen, **kwargs):
         vecs = []
-        if self.fit_raw:
-            print("\tExtracting S2V from raw sentences...", end=' ')
-            for i, text in enumerate(x_raw):
-                sentences = [s for s in re.split(RE_PUNCT, text) if s]
-                embeddings = torch.tensor(self.model.embed_sentences(sentences))
-                vecs.append(torch.mean(embeddings, dim=0))
-        else:
-            print("\tExtracting S2V from tokenized sentences...", end=' ')
-            for i, sentences in enumerate(x_sen):
-                embeddings = torch.tensor(self.model.embed_sentences(sentences))
-                vecs.append(torch.mean(embeddings, dim=0))
+        print("\tExtracting S2V from tokenized sentences...", end=' ')
+        for i, sentences in enumerate(x_sen):
+            embeddings = torch.tensor(self.model.embed_sentences(sentences))
+            vecs.append(torch.mean(embeddings, dim=0))
         print("DONE")
         return torch.stack(vecs)
 
@@ -221,4 +204,4 @@ if __name__ == '__main__':
 
     train, valid, test = dataset.load_features(ext_hooks, device=torch.device('cuda:0'), x=raw_x, y=y,
                                                valid_ratio=0.17, test_ratio=0.35, bow_fit_raw=True,
-                                               s2v_fit_raw=True, wiki=False, w2v_limit=1000000)
+                                               wiki=False, w2v_limit=1000000)

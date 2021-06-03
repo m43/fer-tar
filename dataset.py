@@ -70,9 +70,9 @@ def load_features(extractor_hooks, x=None, y=None, **kwargs):
     print("DONE")
 
     print("Tokenizing essays into sentence-level tokens...", end=' ')
-    sen_trnx = [sent_tokenize(xi) for xi in trnx]
-    sen_valx = [sent_tokenize(xi) for xi in valx]
-    sen_tesx = [sent_tokenize(xi) for xi in tesx]
+    sen_trnx = [sent_tokenize(xi.lower()) for xi in trnx]
+    sen_valx = [sent_tokenize(xi.lower()) for xi in valx]
+    sen_tesx = [sent_tokenize(xi.lower()) for xi in tesx]
     print("DONE")
     print("Tokenizing essays into word-level tokens...", end=' ')
     tok_trnx = [word_tokenize(xi.lower()) for xi in trnx]
