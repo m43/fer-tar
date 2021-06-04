@@ -102,6 +102,52 @@ class CompoundClassifier:
         return 'Compound Classifier:\n' + '\n'.join(['\t' + str(c) for c in self.clfs])
 
 
+class HackyCompoundClassifier:
+    def __init__(self, hooks):
+        self.clfs = [hook(i, **kwargs) for i, (hook, kwargs) in enumerate(hooks)]
+
+    def train(self, data_auth, **kwargs):
+        data = [entry[0] for entry in data_auth]
+        for i, clf in enumerate(self.clfs):
+            if kwargs['debug_print']:
+                print(f"Training '{TRAITS[i]}' classifier: {type(clf)} ...")
+            clf.train(data, **kwargs)
+
+    def forward(self, data):
+        raise NotImplementedError("Ništa to...")
+
+    def classify(self, data_auth):
+        data, authors = data_auth
+        data = DataLoader(dataset=data.dataset, batch_size=data.batch_size, collate_fn=data.collate_fn, shuffle=False)
+
+        preds = torch.zeros((len(data.dataset), 5))
+        trues = torch.zeros((len(data.dataset), 5))
+        for i, clf in enumerate(self.clfs):
+            clf_preds, clf_true = clf.classify(data)
+            preds[:, i] = clf_preds.flatten()
+            trues[:, i] = clf_true.flatten()
+
+        results = {author_id: [torch.zeros((5,)), torch.zeros((5,)), 0] for author_id in authors}
+
+        for auth_id, pred, true in zip(authors, preds, trues):
+            results[auth_id][0] += pred.flatten()
+            results[auth_id][1] = true.flatten()
+            results[auth_id][2] += 1
+
+        preds = torch.zeros((len(results.keys()), 5))
+        trues = torch.zeros((len(results.keys()), 5))
+        for i, (auth_id, (pred, true, count)) in enumerate(results.items()):
+            pred /= count
+            preds[i] = pred
+            trues[i] = true
+
+        preds[preds >= 0.5] = 1.
+        preds[preds < 0.5] = 0.
+        return preds, trues
+
+    def __str__(self):
+        return 'Compound Classifier:\n' + '\n'.join(['\t' + str(c) for c in self.clfs])
+
 class SVMClassifier(TraitClassifier):
     def __init__(self, index, **kwargs):
         super().__init__(index)

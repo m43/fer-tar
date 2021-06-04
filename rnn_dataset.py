@@ -8,6 +8,7 @@ import sent2vec
 import numpy as np
 import torch
 from nltk import word_tokenize, sent_tokenize
+from nltk.stem import WordNetLemmatizer
 from torch.nn import Embedding
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import Dataset, DataLoader
@@ -25,6 +26,8 @@ RE_DELIM = f', '
 # Sent2vec Pre-Trained Models from https://github.com/epfml/sent2vec/)
 S2V_WIKI_UNGIRAMS_PATH = os.path.join(project_path, "saved/s2v/wiki_unigrams.bin")
 S2V_TORONTO_UNIGRAMS_PATH = os.path.join(project_path, "saved/s2v/torontobooks_unigrams.bin")
+
+EMOTIONAL_WORDS_PATH = os.path.join(project_path, "emotions/NRC-Emotion-Lexicon-Wordlevel-v0.92.txt")
 
 
 def load_embeddings(vocab, **kwargs):
@@ -61,7 +64,7 @@ class Instance:
     y: list
 
     def __init__(self, x, y):
-        self.x = word_tokenize(x.lower())
+        self.x = x
         self.y = y
 
 
@@ -80,7 +83,7 @@ class NLPDataset(Dataset):
         self.txt_vocab = vocabulary
         self.instances = []
         for x_i, y_i in zip(x, y):
-            self.instances.append(astuple(Instance(x_i, y_i)))
+            self.instances.append(Instance(x_i, y_i))
         self.len = len(self.instances)
 
     def __getitem__(self, index) -> T_co:
@@ -91,8 +94,8 @@ class NLPDataset(Dataset):
         """
         if index < 0 or index >= self.len:
             raise IndexError(f"Invalid index {index} for array of len {self.len}")
-        x, y = self.instances[index]
-        return self.txt_vocab.encode(x), y
+        instance = self.instances[index]
+        return self.txt_vocab.encode(instance.x), instance.y
 
     def __len__(self):
         """
@@ -136,16 +139,14 @@ class S2VDataset(Dataset):
 
 def extract_frequencies(x):
     """
-    Method used for extracting word occurrences in the list of raw essays.
-    :param x: list of raw essays:
+    Method used for extracting word occurrences in the list of tokenized essays.
+    :param x: list of tokenized essays
     :return: dictionary which maps number of occurrences to each word token, sorted in descending order according to
     number of occurrences
     """
     x_frequencies = {}
 
-    for text in x:
-
-        words = word_tokenize(text.lower())
+    for words in x:
 
         for w in words:
             x_count = 1 if x_frequencies.get(w) is None else x_frequencies.get(w)
@@ -228,6 +229,8 @@ def load_rnn_features(x=None, y=None, **kwargs):
         test_ds = S2VDataset(tes_sent, tesy, s2v, dims)
 
     else:
+        trnx, valx, tesx = [[word_tokenize(ex.lower()) for ex in ds] for ds in [trnx, valx, tesx]]
+
         print("Building vocabulary...", end=' ')
         vocab = Vocab(extract_frequencies(trnx), max_size=kwargs["max_size"], min_freq=kwargs["min_freq"])
         print("DONE")
@@ -238,6 +241,106 @@ def load_rnn_features(x=None, y=None, **kwargs):
         test_ds = NLPDataset(tesx, tesy, vocab)
 
     return train_ds, valid_ds, trainval_ds, test_ds, vocab
+
+
+def load_emotional_words():
+    emotional_words = set()
+    with open(EMOTIONAL_WORDS_PATH, 'r', encoding='cp1252') as em_path:
+        while True:
+            line = em_path.readline().strip()
+            if not line:
+                break
+            parts = re.split(RE_WSPACE, line)
+            word, flag = parts[0], int(parts[2])
+            if flag == 1:
+                emotional_words.add(word)
+    return emotional_words
+
+
+def emotionally_neutral_drop(subset, emotional_words):
+    lemmatizer = WordNetLemmatizer()
+    subset_new = []
+    for txt in subset:
+        sentences = sent_tokenize(txt)
+        relevant_sentences = []
+        for s in sentences:
+            words = word_tokenize(s.lower())
+            for w in words:
+                lemma = lemmatizer.lemmatize(w)
+                if lemma in emotional_words:
+                    relevant_sentences.append(s)  # at least one emotionally charged word is needed for relevance
+                    break
+        if len(relevant_sentences) == 0:
+            subset_new.append(txt)
+        else:
+            subset_new.append(' '.join(relevant_sentences))  # possibly discard empty essays
+    return tuple(subset_new)
+
+
+
+INTERPUNCTION = '.!?,'
+
+
+def to_sentences(tokens):
+    chunks = []
+    start = 0
+    end = 40
+    while start < len(tokens):
+        while end < len(tokens) and tokens[end] not in INTERPUNCTION:
+            end += 1
+        if 10 < end - start:
+            chunks.append(tokens[start:end])
+        start = end
+        end = min(start + 40, len(tokens))
+    return chunks
+
+
+def load_features_2(**kwargs):
+    def extract_authors(x, y):
+        x_new = []
+        x_auth = []
+        y_new = []
+
+        for i, chunks in enumerate(x):
+            x_new += chunks
+            x_auth += [i for _ in chunks]
+            y_new += [y[i] for _ in chunks]
+
+        return x_new, x_auth, torch.stack(y_new)
+
+    x, y = load_dataset()
+
+    if kwargs.get("emotion_drop", False):
+        print("Loading emotionally charged words...", end=' ')
+        emotional_words = load_emotional_words()
+        print("DONE")
+        print("Dropping emotionally neutral sentences...", end=' ')
+        x = emotionally_neutral_drop(x, emotional_words)
+        print("DONE")
+
+    x_toks = [word_tokenize(xi.lower()) for xi in x]
+    x_chunked_toks = [to_sentences(tokens) for tokens in x_toks]
+
+    (trnx, trny), (valx, valy), (tesx, tesy) = split_dataset(x_chunked_toks, y, test_ratio=kwargs['test_ratio'],
+                                                             valid_ratio=kwargs['valid_ratio'])
+    trnx, trna, trny = extract_authors(trnx, trny)
+    valx, vala, valy = extract_authors(valx, valy)
+    tesx, tesa, tesy = extract_authors(tesx, tesy)
+
+    print("Building vocabulary...", end=' ')
+    vocab = Vocab(extract_frequencies(trnx), max_size=kwargs["max_size"], min_freq=kwargs["min_freq"])
+    print("DONE")
+
+    print("Building datasets...", end=' ')
+    train_ds = NLPDataset(trnx, trny, vocab)
+    valid_ds = NLPDataset(valx, valy, vocab)
+    trainval_ds = NLPDataset(trnx + valx, torch.cat((trny, valy), dim=0), vocab)
+    test_ds = NLPDataset(tesx, tesy, vocab)
+    print("DONE")
+    return (train_ds, trna), (valid_ds, vala), (trainval_ds, trna+vala), (test_ds, tesa), vocab
+
+
+# load_features_2(test_ratio=0.2, valid_ratio=0.2, max_size=-1, min_freq=1, emotion_drop=True)
 
 
 def pad_collate_fn(batch, pad_index=0):

@@ -2,11 +2,11 @@ import pprint
 
 import torch.nn
 
-from classifier import CompoundClassifier, FCClassifier, SVMClassifier, LSTMClassifier
+from classifier import CompoundClassifier, FCClassifier, SVMClassifier, LSTMClassifier, HackyCompoundClassifier
 from dataset import load_features, TRAITS, wrap_datasets
 from eval import eval
 from extractor import *
-from rnn_dataset import load_rnn_features, load_embeddings, pad_collate_fn
+from rnn_dataset import load_rnn_features, load_embeddings, pad_collate_fn, load_features_2
 from utils import setup_torch_reproducibility, setup_torch_device, project_path, get_str_formatted_time, ensure_dir
 
 
@@ -19,7 +19,7 @@ def welcome():
 if __name__ == '__main__':
     welcome()
     # ~~~~ Config ~~~~ #
-    n_runs = 10  # How many times will each model be run, used to calculate std. dev.
+    n_runs = 1  # How many times will each model be run, used to calculate std. dev.
     seed = 42  # Initial seed, used to setup reproducibility
     time_str = get_str_formatted_time()  # string time identifier
     test_ratio, val_ratio = 0.2, 0.2
@@ -33,6 +33,7 @@ if __name__ == '__main__':
     batch_size = 16
 
     use_lstm = False
+    augmented = False
 
     if use_lstm:
         # ~~~~ LSTM setup ~~~~ #
@@ -68,6 +69,41 @@ if __name__ == '__main__':
             (LSTMClassifier, rnn_init), (LSTMClassifier, rnn_init),
             (LSTMClassifier, rnn_init)
         ])
+        clf_short_name = "LSTM-LSTM-LSTM-LSTM-LSTM(TEST)"
+    elif augmented:
+        # ~~~~ LSTM setup ~~~~ #
+
+        extract_cfg = {
+            'valid_ratio': val_ratio, 'test_ratio': test_ratio,
+            'device': device,
+            "min_freq": 2,
+            "max_size": -1,
+            'w2v_limit': None,
+            'emotion_drop': True
+        }
+        (train, train_auth), (val, val_auth), (tv, tv_auth), (test, test_auth), vocab = load_features_2(**extract_cfg)
+        print("Wrapping datasets into loaders...", end=' ')
+        train, val, tv, test = wrap_datasets(batch_size, pad_collate_fn, train, val, tv, test)
+        print("DONE")
+        train, valid, trainval, test = (train, train_auth), (val, val_auth), (tv, tv_auth), (test, test_auth)
+
+        rnn_init = {'rnn_layers': 1, 'bidirectional': False, 'activation_fn': torch.nn.ReLU,
+                    'device': device, 'clip': 2.0}
+
+        in_dim = 300
+        print("Loading W2V embeddings...", end=' ')
+        embeddings = load_embeddings(vocab, **extract_cfg)
+        print("DONE")
+        rnn_init['embeddings'] = embeddings
+
+        rnn_init['rnn_dims'] = [in_dim, 512]
+        rnn_init['fc_hidden'] = [512, 128, 1]
+
+        clf_hook = lambda: HackyCompoundClassifier([
+            (LSTMClassifier, rnn_init), (LSTMClassifier, rnn_init),
+            (LSTMClassifier, rnn_init), (LSTMClassifier, rnn_init),
+            (LSTMClassifier, rnn_init)
+        ])
         clf_short_name = "LSTM-LSTM-LSTM-LSTM-LSTM"
     else:
         # ~~~~ FC & SVM setup ~~~~ #
@@ -93,7 +129,7 @@ if __name__ == '__main__':
         ])
         clf_short_name = "FC-FC-FC-FC-FC(BOW)"
 
-    train_args = {"epochs": 50, "lr": 1e-5, "wd": 1e-5, "es_patience": 4, "es_epsilon": 1e-7, "es_maxiter": 30,
+    train_args = {"epochs": 50, "lr": 1e-4, "wd": 1e-5, "es_patience": 5, "es_epsilon": 1e-7, "es_maxiter": 30,
                   "device": device, "debug_print": True}
 
     data_loaders = (train, valid, trainval, test)
