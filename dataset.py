@@ -55,6 +55,8 @@ def split_dataset(x, y, test_ratio=0.2, valid_ratio=0.2):
 
     train_x, val_x, test_x = x[0:n_train], x[n_train:n_train + n_val], x[n_train + n_val:]
     train_y, val_y, test_y = y[0:n_train], y[n_train:n_train + n_val], y[n_train + n_val:]
+    assert train_x[0].startswith("I am hoping that I will be able to keep up with my thoughts for twenty minutes") or \
+           train_x[0].startswith("i am hoping that i will be able to keep up with my thoughts for twenty minutes .  it")
     return (train_x, train_y), (val_x, val_y), (test_x, test_y)
 
 
@@ -104,7 +106,6 @@ def load_features(extractor_hooks, x=None, y=None, **kwargs):
 
 def wrap_datasets(batch_size, collate_fn=None, *datasets):
     return [DataLoader(dataset=d, batch_size=batch_size, collate_fn=collate_fn, shuffle=True) for d in datasets]
-
 
 
 if __name__ == '__main__':
