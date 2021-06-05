@@ -1,7 +1,35 @@
+import copy
 from collections import OrderedDict
 
 import torch.nn
 import torch.nn as nn
+
+
+class MaRNN(nn.Module):
+    def __init__(self, device, rnn_class=nn.LSTM, hid_dim_1=150, hid_dim_2=150, dropout=0, **kwargs):
+        super().__init__()
+        self.embeddings = kwargs['embeddings'] if 'embeddings' in kwargs else None
+
+        d_in, d_out = kwargs['rnn_dims']
+        num_layers = kwargs["rnn_layers"]
+        bidirectional = kwargs["bidirectional"]
+
+        self.rnn = rnn_class(input_size=d_in, hidden_size=d_out, num_layers=num_layers, dropout=dropout,
+                             bidirectional=bidirectional)
+        self.fc1 = nn.Linear(d_out, hid_dim_2)
+        self.fc2 = nn.Linear(hid_dim_2, 1)
+        self.to(device=device)
+
+    def forward(self, x, lengths=None):
+        if self.embeddings is not None:
+            x = self.embeddings(x)
+        x = torch.transpose(x, dim0=0, dim1=1)
+        x, _ = self.rnn(x)
+        # Better off using torch.nn.utils.rnn.pack_padded_sequence instead of lengths and vstack
+        x = torch.vstack([x[lengths[i] - 1, i] for i in range(x.shape[1])])
+        # x = torch.vstack([x[-1, i] for i in range(x.shape[1])])
+        x = torch.relu(self.fc1(x))
+        return self.fc2(x)
 
 
 class LSTM(nn.Module):
@@ -63,11 +91,42 @@ def train(model, train_loader, valid_loader, trainval_loader, test_loader, **kwa
     optimizer = torch.optim.Adam(model.parameters(), lr=kwargs["lr"], weight_decay=kwargs["wd"])
     criterion = nn.BCEWithLogitsLoss()
 
+    valid_loss = _evaluate(model, valid_loader, criterion, **kwargs)
+    print(f"[{-1}/{kwargs['epochs']}] VALID LOSS = {valid_loss}")
+
+    best_model_dict = best_loss = best_epoch = None
+    for epoch in range(kwargs["epochs"]):
+        epoch += 1
+
+        _train_epoch(epoch, model, train_loader, optimizer, criterion, current_epoch=epoch, **kwargs)
+        valid_loss = _evaluate(model, valid_loader, criterion, **kwargs)
+        print(f"[{epoch}/{kwargs['epochs']}] VALID LOSS = {valid_loss}")
+
+        if best_loss is None or best_loss > valid_loss + kwargs["es_epsilon"]:
+            print(f"New best epoch is {epoch} with valid loss {valid_loss}")
+            best_epoch = epoch
+            best_loss = valid_loss
+            best_model_dict = copy.deepcopy(model.state_dict())
+
+        if kwargs["es_patience"] != -1 and epoch - best_epoch >= kwargs["es_patience"]:
+            print(f"EARLY STOPPING at epoch {epoch}. Best epoch {best_epoch}. Best valid loss: {best_loss}. Cheers")
+            assert best_model_dict is not None
+            model.load_state_dict(best_model_dict)
+            break
+
+    test_loss = _evaluate(model, test_loader, criterion, **kwargs)
+    print(f"[FINITO] TEST LOSS\n{test_loss}")
+
+
+def train_OLD(model, train_loader, valid_loader, trainval_loader, test_loader, **kwargs):
+    optimizer = torch.optim.Adam(model.parameters(), lr=kwargs["lr"], weight_decay=kwargs["wd"])
+    criterion = nn.BCEWithLogitsLoss()
+
     best_loss = best_epoch = None
     for epoch in range(1, kwargs["epochs"] + 1):
-        _train_epoch(model, train_loader, optimizer, criterion, current_epoch=epoch, **kwargs)
+        _train_epoch(epoch, model, train_loader, optimizer, criterion, current_epoch=epoch, **kwargs)
         valid_loss = _evaluate(model, valid_loader, criterion, **kwargs)
-        if kwargs["debug_print"] and epoch % 5 == 0:
+        if kwargs["debug_print"]:
             print(f"[{epoch}/{kwargs['epochs']}] VALID LOSS = {valid_loss}")
 
         if best_loss is None or best_loss > valid_loss + kwargs["es_epsilon"]:
@@ -84,7 +143,7 @@ def train(model, train_loader, valid_loader, trainval_loader, test_loader, **kwa
     e = 0
 
     while valid_loss > train_loss and e < kwargs["es_maxiter"]:
-        _train_epoch(model, trainval_loader, optimizer, criterion, e,  **kwargs)
+        _train_epoch(e, model, trainval_loader, optimizer, criterion, e, **kwargs)
         valid_loss = _evaluate(model, valid_loader, criterion, **kwargs)
         e += 1
 
@@ -93,14 +152,22 @@ def train(model, train_loader, valid_loader, trainval_loader, test_loader, **kwa
         print(f"[FINISHED] TEST LOSS = {test_loss}")
 
 
-def _train_epoch(model, data, optimizer, criterion, current_epoch, **kwargs):
+# my_batch = None
+
+
+def _train_epoch(epoch, model, data, optimizer, criterion, current_epoch, **kwargs):
+    # global my_batch
     model.train()
     losses, batch_sizes = [], []
-    for batch_num, (x, y, _) in enumerate(data):
-        x, y = x.to(kwargs["device"]), y[:, kwargs['index']].to(kwargs["device"])
+    loss_sum = correct = total = 0
+    for batch_num, (x, y, l) in enumerate(data):
+        x, y, l = x.to(kwargs["device"]), y[:, kwargs['index']].to(kwargs["device"]), l.to(kwargs["device"])
+        # if my_batch is None:
+        #     my_batch = (x, y, l)
+        # x, y, l = my_batch
 
         model.zero_grad()
-        logits = model(x).reshape(y.shape)
+        logits = model(x, l).reshape(y.shape)
         loss = criterion(logits, y)
         loss.backward()
         if "clip" in kwargs.keys():
@@ -109,6 +176,15 @@ def _train_epoch(model, data, optimizer, criterion, current_epoch, **kwargs):
 
         losses.append(loss)
         batch_sizes.append(len(x))
+
+        y_predicted = (logits > 0).clone().detach().type(torch.int).reshape(y.shape)
+        correct += (y_predicted == y).sum()
+        total += len(x)
+
+        loss_sum += loss
+    print(
+        f"[{epoch}/{kwargs['epochs']}] TRAIN --> losses={' '.join([str(x) for x in losses])}\t last iter logits: {' '.join([str(x) for x in logits])}")
+    print(f"[{epoch}/{kwargs['epochs']}] TRAIN --> avg_loss={loss_sum / (batch_num + 1)}\tacc={correct / total}")
 
     if kwargs["debug_print"]:
         avg_loss = sum([loss * size for loss, size in zip(losses, batch_sizes)]) / sum(batch_sizes)
@@ -119,14 +195,24 @@ def _evaluate(model, data, criterion, **kwargs):
     model.eval()
     with torch.no_grad():
         losses, batch_sizes = [], []
-        for batch_num, (x, y, _) in enumerate(data):
-            x, y = x.to(kwargs["device"]), y[:, kwargs['index']].to(kwargs["device"])
+        loss_sum = correct = total = 0
+        for batch_num, (x, y, l) in enumerate(data):
+            x, y, l = x.to(kwargs["device"]), y[:, kwargs['index']].to(kwargs["device"]), l.to(kwargs["device"])
 
-            logits = model(x).reshape(y.shape)
+            logits = model(x, l).reshape(y.shape)
             loss = criterion(logits, y)
 
             losses.append(loss)
             batch_sizes.append(len(x))
+
+            y_predicted = (logits > 0).clone().detach().type(torch.int).reshape(y.shape)
+            correct += (y_predicted == y).sum()
+            total += len(x)
+
+            # print(f"EVAL --> {batch_num} --> Loss: {loss:3.5f}")
+            loss_sum += loss
+    print(f"EVAL --> losses: {[' '.join([str(x) for x in losses])]}")
+    print(f"EVAL --> avg_loss={loss_sum / (batch_num + 1)}\tacc={correct / total}")
 
     loss = sum([loss * size for loss, size in zip(losses, batch_sizes)]) / sum(batch_sizes)
     return loss

@@ -8,7 +8,6 @@ from torch.utils.data import DataLoader
 import fc
 import rnn
 from dataset import TRAITS
-from rnn import LSTM
 
 
 class TraitClassifier(ABC):
@@ -148,6 +147,7 @@ class HackyCompoundClassifier:
     def __str__(self):
         return 'Compound Classifier:\n' + '\n'.join(['\t' + str(c) for c in self.clfs])
 
+
 class SVMClassifier(TraitClassifier):
     def __init__(self, index, **kwargs):
         super().__init__(index)
@@ -221,7 +221,8 @@ class FCClassifier(TraitClassifier):
 class LSTMClassifier(TraitClassifier):
     def __init__(self, index, **kwargs):
         super().__init__(index)
-        self.model = LSTM(**kwargs)
+        # self.model = LSTM(**kwargs)
+        self.model = rnn.MaRNN(**kwargs)
         self.device = kwargs['device']
 
     def train(self, data, **kwargs):
@@ -238,9 +239,9 @@ class LSTMClassifier(TraitClassifier):
         start, end = 0, data.batch_size
         with torch.no_grad():
             for i, batch in enumerate(data):
-                x, y, _ = batch
-                true[start:end] = y[:, self.index:self.index+1]
-                scores[start:end] = self.model.forward(x.to(self.device))
+                x, y, l = batch
+                true[start:end] = y[:, self.index:self.index + 1]
+                scores[start:end] = self.model.forward(x.to(self.device), l.to(self.device))
                 start = end
                 end = min(end + data.batch_size, N)
         self.model.to(torch.device("cpu"))
@@ -256,7 +257,6 @@ class LSTMClassifier(TraitClassifier):
 
     def __str__(self):
         return f"{self.index + 1}. LSTMClassifier[{TRAITS[self.index]}]"
-
 
 
 if __name__ == '__main__':

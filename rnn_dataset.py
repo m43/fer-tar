@@ -209,7 +209,7 @@ def load_rnn_features(x=None, y=None, **kwargs):
     """
     if x is None and y is None:
         print("Loading dataset from CSV file...", end=' ')
-        x, y = load_dataset()
+        x, y = load_dataset(max_essays=kwargs["max_essays"])
         print("DONE")
 
     print("Creating train/valid/test splits...", end=' ')
@@ -355,10 +355,10 @@ def pad_collate_fn(batch, pad_index=0):
     lengths = torch.tensor([len(text) for text in texts])  # Needed for later
 
     texts_tensor = pad_sequence(list(texts), padding_value=pad_index, batch_first=True)
+    # packed_input = pack_padded_sequence(embedded_seq_tensor, seq_lengths.cpu().numpy(), batch_first=True)
     labels_tensor = torch.vstack(labels)
 
     return texts_tensor, labels_tensor, lengths
-
 
 if __name__ == "__main__":
     ds_x, ds_y = load_dataset()

@@ -1,8 +1,7 @@
+import pickle
 import pprint
 
-import torch.nn
-
-from classifier import CompoundClassifier, FCClassifier, SVMClassifier, LSTMClassifier, HackyCompoundClassifier
+from classifier import CompoundClassifier, FCClassifier, LSTMClassifier, HackyCompoundClassifier
 from dataset import load_features, TRAITS, wrap_datasets
 from eval import eval
 from extractor import *
@@ -30,39 +29,52 @@ if __name__ == '__main__':
     # ~~~~ Setup ~~~~ #
     device = setup_torch_device()
     setup_torch_reproducibility(seed)
-    batch_size = 16
+    batch_size = 32
 
-    use_lstm = False
+    use_lstm = True
     augmented = False
 
     if use_lstm:
         # ~~~~ LSTM setup ~~~~ #
-
         extract_cfg = {
             'valid_ratio': val_ratio, 'test_ratio': test_ratio,
             'device': device,
             "min_freq": 2,
             "max_size": -1,
-            'w2v_limit': 2500000,
-            's2v': True,
-            'wiki': False
+            'w2v_limit': None,
+            's2v': False,
+            'wiki': True,
+            "max_essays": None
         }
 
-        train, valid, trainval, test, vocab = load_rnn_features(**extract_cfg)
+        use_pickle = False
+        pickle_path = os.path.join(project_path, "saved/kiseli.pk")
+        if use_pickle and os.path.exists(pickle_path):
+            print("Loading (train, valid, trainval, test, vocab) from pickled dump")
+            with open(pickle_path, "rb") as f:
+                train, valid, trainval, test, vocab = pickle.load(f)
+        else:
+            train, valid, trainval, test, vocab = load_rnn_features(**extract_cfg)
+            with open(pickle_path, "wb") as f:
+                pickle.dump((train, valid, trainval, test, vocab), f)
+
         train, valid, trainval, test = wrap_datasets(batch_size, pad_collate_fn, train, valid, trainval, test)
+        # pickle.
 
         rnn_init = {'rnn_layers': 1, 'bidirectional': False, 'activation_fn': torch.nn.ReLU,
-                    'device': device, 'clip': 0.5}
+                    'device': device, 'clip': 20}
 
         if extract_cfg['s2v']:
             in_dim = 600 if extract_cfg['wiki'] else 700
         else:
             in_dim = 300
+            print("Load embeddings")
             embeddings = load_embeddings(vocab, **extract_cfg)
             rnn_init['embeddings'] = embeddings
+            print("Embeddings loaded")
 
-        rnn_init['rnn_dims'] = [in_dim, 512]
-        rnn_init['fc_hidden'] = [512, 128, 1]
+        rnn_init['rnn_dims'] = [in_dim, 200]
+        # rnn_init['fc_hidden'] = [512, 128, 1]
 
         clf_hook = lambda: CompoundClassifier([
             (LSTMClassifier, rnn_init), (LSTMClassifier, rnn_init),
@@ -70,66 +82,66 @@ if __name__ == '__main__':
             (LSTMClassifier, rnn_init)
         ])
         clf_short_name = "LSTM-LSTM-LSTM-LSTM-LSTM(TEST)"
-    elif augmented:
-        # ~~~~ LSTM setup ~~~~ #
+    # elif augmented:
+    #     # ~~~~ LSTM setup ~~~~ #
+    #
+    #     extract_cfg = {
+    #         'valid_ratio': val_ratio, 'test_ratio': test_ratio,
+    #         'device': device,
+    #         "min_freq": 2,
+    #         "max_size": -1,
+    #         'w2v_limit': None,
+    #         'emotion_drop': True
+    #     }
+    #     (train, train_auth), (val, val_auth), (tv, tv_auth), (test, test_auth), vocab = load_features_2(**extract_cfg)
+    #     print("Wrapping datasets into loaders...", end=' ')
+    #     train, val, tv, test = wrap_datasets(batch_size, pad_collate_fn, train, val, tv, test)
+    #     print("DONE")
+    #     train, valid, trainval, test = (train, train_auth), (val, val_auth), (tv, tv_auth), (test, test_auth)
+    #
+    #     rnn_init = {'rnn_layers': 1, 'bidirectional': False, 'activation_fn': torch.nn.ReLU,
+    #                 'device': device, 'clip': 2.0}
+    #
+    #     in_dim = 300
+    #     print("Loading W2V embeddings...", end=' ')
+    #     embeddings = load_embeddings(vocab, **extract_cfg)
+    #     print("DONE")
+    #     rnn_init['embeddings'] = embeddings
+    #
+    #     rnn_init['rnn_dims'] = [in_dim, 512]
+    #     rnn_init['fc_hidden'] = [512, 128, 1]
+    #
+    #     clf_hook = lambda: HackyCompoundClassifier([
+    #         (LSTMClassifier, rnn_init), (LSTMClassifier, rnn_init),
+    #         (LSTMClassifier, rnn_init), (LSTMClassifier, rnn_init),
+    #         (LSTMClassifier, rnn_init)
+    #     ])
+    #     clf_short_name = "LSTM-LSTM-LSTM-LSTM-LSTM"
+    # else:
+    #     # ~~~~ FC & SVM setup ~~~~ #
+    #
+    #     extract_cfg = {
+    #         'valid_ratio': val_ratio, 'test_ratio': test_ratio,
+    #         'device': device,
+    #         'wiki': True,
+    #         'w2v_limit': 2500000
+    #     }
+    #     ext_hooks = (BOWExtractor,)
+    #     train, valid, trainval, test = load_features(ext_hooks, **extract_cfg)
+    #     in_dim = len(train[0][0])
+    #     train, valid, trainval, test = wrap_datasets(batch_size, None, train, valid, trainval, test)
+    #
+    #     fc_init = {"neurons_per_layer": [in_dim, 100, 1], "activation_module": torch.nn.ReLU, "device": device}
+    #     svm_init = {"c": 1, "gamma": "auto", "decision_function_shape": "ovo", "kernel": "rbf", "in_dim": in_dim}
+    #
+    #     clf_hook = lambda: CompoundClassifier([
+    #         (FCClassifier, fc_init), (FCClassifier, fc_init),
+    #         (FCClassifier, fc_init), (FCClassifier, fc_init),
+    #         (FCClassifier, fc_init)
+    #     ])
+    #     clf_short_name = "FC-FC-FC-FC-FC(BOW)"
 
-        extract_cfg = {
-            'valid_ratio': val_ratio, 'test_ratio': test_ratio,
-            'device': device,
-            "min_freq": 2,
-            "max_size": -1,
-            'w2v_limit': None,
-            'emotion_drop': True
-        }
-        (train, train_auth), (val, val_auth), (tv, tv_auth), (test, test_auth), vocab = load_features_2(**extract_cfg)
-        print("Wrapping datasets into loaders...", end=' ')
-        train, val, tv, test = wrap_datasets(batch_size, pad_collate_fn, train, val, tv, test)
-        print("DONE")
-        train, valid, trainval, test = (train, train_auth), (val, val_auth), (tv, tv_auth), (test, test_auth)
-
-        rnn_init = {'rnn_layers': 1, 'bidirectional': False, 'activation_fn': torch.nn.ReLU,
-                    'device': device, 'clip': 2.0}
-
-        in_dim = 300
-        print("Loading W2V embeddings...", end=' ')
-        embeddings = load_embeddings(vocab, **extract_cfg)
-        print("DONE")
-        rnn_init['embeddings'] = embeddings
-
-        rnn_init['rnn_dims'] = [in_dim, 512]
-        rnn_init['fc_hidden'] = [512, 128, 1]
-
-        clf_hook = lambda: HackyCompoundClassifier([
-            (LSTMClassifier, rnn_init), (LSTMClassifier, rnn_init),
-            (LSTMClassifier, rnn_init), (LSTMClassifier, rnn_init),
-            (LSTMClassifier, rnn_init)
-        ])
-        clf_short_name = "LSTM-LSTM-LSTM-LSTM-LSTM"
-    else:
-        # ~~~~ FC & SVM setup ~~~~ #
-
-        extract_cfg = {
-            'valid_ratio': val_ratio, 'test_ratio': test_ratio,
-            'device': device,
-            'wiki': True,
-            'w2v_limit': 2500000
-        }
-        ext_hooks = (BOWExtractor,)
-        train, valid, trainval, test = load_features(ext_hooks, **extract_cfg)
-        in_dim = len(train[0][0])
-        train, valid, trainval, test = wrap_datasets(batch_size, None, train, valid, trainval, test)
-
-        fc_init = {"neurons_per_layer": [in_dim, 100, 1], "activation_module": torch.nn.ReLU, "device": device}
-        svm_init = {"c": 1, "gamma": "auto", "decision_function_shape": "ovo", "kernel": "rbf", "in_dim": in_dim}
-
-        clf_hook = lambda: CompoundClassifier([
-            (FCClassifier, fc_init), (FCClassifier, fc_init),
-            (FCClassifier, fc_init), (FCClassifier, fc_init),
-            (FCClassifier, fc_init)
-        ])
-        clf_short_name = "FC-FC-FC-FC-FC(BOW)"
-
-    train_args = {"epochs": 50, "lr": 1e-4, "wd": 1e-5, "es_patience": 5, "es_epsilon": 1e-7, "es_maxiter": 30,
+    train_args = {"epochs": 100, "lr": 1e-3, "wd": 5e-7, "es_patience": 30, "es_epsilon": 1e-7, "es_maxiter": 30,
                   "device": device, "debug_print": True}
 
     data_loaders = (train, valid, trainval, test)
@@ -191,6 +203,6 @@ if __name__ == '__main__':
     them. I open the csv in LibreOffice Calc, copy the content
     and paste it into Google Sheets. Here is a google sheets
     document that I've shared with you: https://cutt.ly/wbUjfdt
-    
+
     Local csv path: {results_csv}"""
     print(note)

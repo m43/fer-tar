@@ -11,7 +11,7 @@ DS_PATH = os.path.join(project_path, 'dataset/essays.csv')
 TRAITS = ['ext', 'neu', 'agr', 'con', 'opn']
 
 
-def load_dataset(text_preprocessing_fn=None):
+def load_dataset(text_preprocessing_fn=None, max_essays=None):
     """
     Function for loading dataset from .csv file. It reads the .csv file and parses it, thus creating a list of
     all file entries. A entry consists of 7 attributes which are: author, text and bool flags for extroversion,
@@ -27,6 +27,10 @@ def load_dataset(text_preprocessing_fn=None):
                 continue
             dataset_row = [(row[i] if i < 2 else (1. if row[i] == 'y' else 0.)) for i in range(len(row))]
             dataset.append(dataset_row)
+            if max_essays is not None and len(dataset) == max_essays:
+                break
+
+    print(f"LOADED DATASET OF {len(dataset)} ESSAYS")
 
     x = [line[1] for line in dataset]
     y = torch.tensor([line[2:] for line in dataset], dtype=torch.float32)
@@ -55,8 +59,8 @@ def split_dataset(x, y, test_ratio=0.2, valid_ratio=0.2):
 
     train_x, val_x, test_x = x[0:n_train], x[n_train:n_train + n_val], x[n_train + n_val:]
     train_y, val_y, test_y = y[0:n_train], y[n_train:n_train + n_val], y[n_train + n_val:]
-    assert train_x[0].startswith("I am hoping that I will be able to keep up with my thoughts for twenty minutes") or \
-           train_x[0].startswith("i am hoping that i will be able to keep up with my thoughts for twenty minutes .  it")
+    # assert train_x[0].startswith("I am hoping that I will be able to keep up with my thoughts for twenty minutes") or \
+    #        train_x[0].startswith("i am hoping that i will be able to keep up with my thoughts for twenty minutes .  it")
     return (train_x, train_y), (val_x, val_y), (test_x, test_y)
 
 
