@@ -254,8 +254,8 @@ def main(ngram):
 
 
 if __name__ == '__main__':
-    # ngrams_to_try = ["1", "12", "123", "1234"]
+    ngrams_to_try = ["1", "12", "123", "1234"]
     # ngrams_to_try = ["1", "12", "123"]
-    ngrams_to_try = ["1234"]
+    # ngrams_to_try = ["1234"]
     for ngram in ngrams_to_try:
         main(ngram)

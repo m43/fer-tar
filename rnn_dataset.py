@@ -1,11 +1,10 @@
-import re
-from dataclasses import astuple, dataclass
 import os
+import re
+from dataclasses import dataclass
 
-from utils import project_path
 import gensim
-import sent2vec
 import numpy as np
+import sent2vec
 import torch
 from nltk import word_tokenize, sent_tokenize
 from nltk.stem import WordNetLemmatizer
@@ -16,6 +15,7 @@ from torch.utils.data.dataset import T_co
 
 from dataset import load_dataset, split_dataset
 from extractor import W2V_GOOGLE_NEWS_PATH
+from utils import project_path
 
 PAD = "<PAD>"
 UNK = "<UNK>"
@@ -72,6 +72,7 @@ class NLPDataset(Dataset):
     """
     Class used for modeling essay dataset.
     """
+
     def __init__(self, x, y, vocabulary):
         """
         Initialization method.
@@ -123,7 +124,7 @@ class S2VDataset(Dataset):
     def build(self, x, y):
         x_emb = []
         for i, sentences in enumerate(x):
-            emb_sents = torch.tensor(self.s2v.embed_sentences(sentences))   # N(sent) x 700 or 600
+            emb_sents = torch.tensor(self.s2v.embed_sentences(sentences))  # N(sent) x 700 or 600
             x_emb.append(emb_sents)
         return x_emb, y
 
@@ -159,6 +160,7 @@ class Vocab:
     """
     Class which models a vocabulary of known words and their indices.
     """
+
     def __init__(self, frequencies, max_size=-1, min_freq=0):
         """
         Initialization method.
@@ -277,22 +279,51 @@ def emotionally_neutral_drop(subset, emotional_words):
     return tuple(subset_new)
 
 
+def emotionally_neutral_drop_chunks(data, emotional_words):
+    # data: list[ list[ list[ str ] ] ]
+    #       N     C     T     word
+    # N = number of examples
+    # C = number of chunks in example
+    # T = number of tokens in chunk
+    lemmatizer = WordNetLemmatizer()
+    new_data = []
+    dropped_chunks_per_author = []
+    for example in data:
+        new_example = []
+        for chunk in example:
+            for token in chunk:
+                lemma = lemmatizer.lemmatize(token)
+                if lemma in emotional_words:
+                    new_example.append(chunk)
+                    break
+        if len(new_example) == 0:
+            new_example = example
+        dropped_chunks_per_author.append(len(example) - len(new_example))
+        new_data.append(new_example)
+    # print(f"Dropped chunks per author: {dropped_chunks_per_author}")
+    # print(f"Total dropped chunks: {sum(dropped_chunks_per_author)}")
+    # print(f"Author count: {len(dropped_chunks_per_author)}")
+    return new_data
+
 
 INTERPUNCTION = '.!?,'
 
 
-def to_sentences(tokens):
+def to_sentences(tokens, min_chunk_length):
     chunks = []
     start = 0
-    end = 40
+    end = min_chunk_length
     while start < len(tokens):
         while end < len(tokens) and tokens[end] not in INTERPUNCTION:
             end += 1
         if 10 < end - start:
             chunks.append(tokens[start:end])
         start = end
-        end = min(start + 40, len(tokens))
+        end = min(start + min_chunk_length, len(tokens))
     return chunks
+
+
+EMOTION_DROP_VERSIONS = ["none", "v1sent", "v2chunk"]
 
 
 def load_features_2(**kwargs):
@@ -310,16 +341,26 @@ def load_features_2(**kwargs):
 
     x, y = load_dataset()
 
-    if kwargs.get("emotion_drop", False):
+    x_toks = [word_tokenize(xi.lower()) for xi in x]
+    x_chunked_toks = [to_sentences(tokens, kwargs['min_chunk_length']) for tokens in x_toks]
+
+    emotion_drop = kwargs.get("emotion_drop")
+    assert emotion_drop in EMOTION_DROP_VERSIONS
+
+    if emotion_drop == "v1sent":
         print("Loading emotionally charged words...", end=' ')
         emotional_words = load_emotional_words()
         print("DONE")
         print("Dropping emotionally neutral sentences...", end=' ')
         x = emotionally_neutral_drop(x, emotional_words)
         print("DONE")
-
-    x_toks = [word_tokenize(xi.lower()) for xi in x]
-    x_chunked_toks = [to_sentences(tokens) for tokens in x_toks]
+    elif emotion_drop == "v2chunk":
+        print("Loading emotionally charged words...", end=' ')
+        emotional_words = load_emotional_words()
+        print("DONE")
+        print("Dropping emotionally neutral chunks...", end=' ')
+        x_chunked_toks = emotionally_neutral_drop_chunks(x_chunked_toks, emotional_words)
+        print("DONE")
 
     (trnx, trny), (valx, valy), (tesx, tesy) = split_dataset(x_chunked_toks, y, test_ratio=kwargs['test_ratio'],
                                                              valid_ratio=kwargs['valid_ratio'])
@@ -337,7 +378,7 @@ def load_features_2(**kwargs):
     trainval_ds = NLPDataset(trnx + valx, torch.cat((trny, valy), dim=0), vocab)
     test_ds = NLPDataset(tesx, tesy, vocab)
     print("DONE")
-    return (train_ds, trna), (valid_ds, vala), (trainval_ds, trna+vala), (test_ds, tesa), vocab
+    return (train_ds, trna), (valid_ds, vala), (trainval_ds, trna + vala), (test_ds, tesa), vocab
 
 
 # load_features_2(test_ratio=0.2, valid_ratio=0.2, max_size=-1, min_freq=1, emotion_drop=True)
@@ -359,6 +400,7 @@ def pad_collate_fn(batch, pad_index=0):
     labels_tensor = torch.vstack(labels)
 
     return texts_tensor, labels_tensor, lengths
+
 
 if __name__ == "__main__":
     ds_x, ds_y = load_dataset()

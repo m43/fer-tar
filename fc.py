@@ -1,3 +1,4 @@
+import copy
 from collections import OrderedDict
 
 import torch
@@ -33,11 +34,45 @@ def train(model, train_loader, valid_loader, trainval_loader, test_loader, **kwa
     optimizer = torch.optim.Adam(model.parameters(), lr=kwargs["lr"], weight_decay=kwargs["wd"])
     criterion = nn.BCEWithLogitsLoss()
 
+    if kwargs["debug_print"]:
+        valid_loss = _evaluate(model, valid_loader, criterion, **kwargs)
+        print(f"[{-1}/{kwargs['epochs']}] VALID LOSS = {valid_loss}")
+
+    best_model_dict = best_loss = best_epoch = None
+    for epoch in range(1, kwargs["epochs"] + 1):
+        _train_epoch(model, train_loader, optimizer, criterion, current_epoch=epoch, **kwargs)
+        valid_loss = _evaluate(model, valid_loader, criterion, **kwargs)
+        if kwargs["debug_print"]:
+            print(f"[{epoch}/{kwargs['epochs']}] VALID LOSS = {valid_loss}")
+
+        if best_loss is None or best_loss > valid_loss + kwargs["es_epsilon"]:
+            if kwargs["debug_print"]:
+                print(f"New best epoch is {epoch} with valid loss {valid_loss}")
+            best_epoch = epoch
+            best_loss = valid_loss
+            best_model_dict = copy.deepcopy(model.state_dict())
+
+        if kwargs["es_patience"] != -1 and epoch - best_epoch >= kwargs["es_patience"]:
+            if kwargs["debug_print"]:
+                print(f"EARLY STOPPING at epoch {epoch}. Best epoch {best_epoch}. Best valid loss: {best_loss}. Cheers")
+            assert best_model_dict is not None
+            model.load_state_dict(best_model_dict)
+            break
+
+    test_loss = _evaluate(model, test_loader, criterion, **kwargs)
+    if kwargs["debug_print"]:
+        print(f"[FINISHED] TEST LOSS = {test_loss}")
+
+
+def train_OLD(model, train_loader, valid_loader, trainval_loader, test_loader, **kwargs):
+    optimizer = torch.optim.Adam(model.parameters(), lr=kwargs["lr"], weight_decay=kwargs["wd"])
+    criterion = nn.BCEWithLogitsLoss()
+
     best_loss = best_epoch = None
     for epoch in range(1, kwargs["epochs"] + 1):
         _train_epoch(model, train_loader, optimizer, criterion, current_epoch=epoch, **kwargs)
         valid_loss = _evaluate(model, valid_loader, criterion, **kwargs)
-        if kwargs["debug_print"] and epoch % 5 == 0:
+        if kwargs["debug_print"]:
             print(f"[{epoch}/{kwargs['epochs']}] VALID LOSS = {valid_loss}")
 
         if best_loss is None or best_loss > valid_loss + kwargs["es_epsilon"]:
@@ -50,7 +85,7 @@ def train(model, train_loader, valid_loader, trainval_loader, test_loader, **kwa
             break
 
     train_loss = _evaluate(model, train_loader, criterion, **kwargs)
-    valid_loss = train_loss + 42    # 42 chosen randomly, valid_loss just has to be bigger than train_loss
+    valid_loss = train_loss + 42  # 42 chosen randomly, valid_loss just has to be bigger than train_loss
     e = 0
     while valid_loss > train_loss and e < kwargs["es_maxiter"]:
         _train_epoch(model, trainval_loader, optimizer, criterion, **kwargs)

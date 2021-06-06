@@ -33,26 +33,6 @@ class Classifier(ABC):
         """
         pass
 
-
-class MCCBaseline(Classifier):
-    """
-    Majority class classifier
-    """
-
-    def __init__(self):
-        self.labels = None
-
-    def train(self, x, y):
-        count_true = [0, 0, 0, 0, 0]
-        for i in range(len(x)):
-            for j in range(5):
-                count_true[j] += 1 if x[i][j] else 0
-        self.labels = torch.tensor([count > (len(x) / 2) for count in count_true])
-
-    def classify(self, x, y):
-        return self.labels.repeat(x.size(0), 1)
-
-
 class RandomBaseline(Classifier):
     """
     Random class classifier
@@ -72,16 +52,16 @@ if __name__ == '__main__':
     setup_torch_reproducibility(72)
     x, y = load_dataset()
 
-    # ~~~~ MCCBaseline ~~~~ #
-    model = MCCBaseline()
-    model.train(x, y)
-    for ex_x, ex_y in zip(x, y):
-        label = model.classify(ex_x, ex_y)
-
-    print("MCCBaseline:")
-    scores = eval.eval(model, x, y)
-    for k in scores.keys():
-        print(scores[k])
+    # # ~~~~ MCCBaseline ~~~~ #
+    # model = MCCBaseline()
+    # model.train(x, y)
+    # for ex_x, ex_y in zip(x, y):
+    #     label = model.classify(ex_x, ex_y)
+    #
+    # print("MCCBaseline:")
+    # scores = eval.eval(model, x, y)
+    # for k in scores.keys():
+    #     print(scores[k])
 
     # ~~~~ RandomBaseline ~~~~ #
     model = RandomBaseline()

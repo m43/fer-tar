@@ -6,7 +6,7 @@ import torch.nn as nn
 
 
 class MaRNN(nn.Module):
-    def __init__(self, device, rnn_class=nn.LSTM, hid_dim_1=150, hid_dim_2=150, dropout=0, **kwargs):
+    def __init__(self, device, rnn_class=nn.LSTM, dropout=0.5, **kwargs):
         super().__init__()
         self.embeddings = kwargs['embeddings'] if 'embeddings' in kwargs else None
 
@@ -16,8 +16,9 @@ class MaRNN(nn.Module):
 
         self.rnn = rnn_class(input_size=d_in, hidden_size=d_out, num_layers=num_layers, dropout=dropout,
                              bidirectional=bidirectional)
-        self.fc1 = nn.Linear(d_out, hid_dim_2)
-        self.fc2 = nn.Linear(hid_dim_2, 1)
+        fc_in = d_out * 2 if bidirectional else d_out
+        self.fc1 = nn.Linear(fc_in, kwargs["fc_hid_dim"])
+        self.fc2 = nn.Linear(kwargs["fc_hid_dim"], 1)
         self.to(device=device)
 
     def forward(self, x, lengths=None):

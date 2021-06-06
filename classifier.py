@@ -69,6 +69,44 @@ class TraitClassifier(ABC):
         pass
 
 
+class MCCBaseline(TraitClassifier):
+    """
+    Majority class classifier
+    """
+
+    def __init__(self, index):
+        self.index = index
+        self.label = None
+
+    def train(self, data, **kwargs):
+        count_true = 0
+        _, _, trainval, _ = data
+        n = 0
+        for batch in trainval:
+            y = batch[1]
+            n += len(y)
+            count_true += int(y[:, self.index].sum())
+        self.label = torch.tensor(count_true > n / 2)
+
+    def forward(self, data):
+        N = len(data.dataset)
+        scores = torch.zeros((N, 1))
+        true = torch.zeros((N, 1))
+
+        start, end = 0, data.batch_size
+        with torch.no_grad():
+            for i, batch in enumerate(data):
+                y = batch[1]
+                true[start:end] = y[:, self.index:self.index + 1]
+                scores[start:end] = torch.ones((len(y), 1)) * self.label
+                start = end
+                end = min(end + data.batch_size, N)
+        return scores, true
+
+    def classify(self, data):
+        return self.forward(data)
+
+
 class CompoundClassifier:
     def __init__(self, hooks):
         self.clfs = [hook(i, **kwargs) for i, (hook, kwargs) in enumerate(hooks)]
