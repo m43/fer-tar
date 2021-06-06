@@ -341,12 +341,7 @@ def load_features_2(**kwargs):
 
     x, y = load_dataset()
 
-    x_toks = [word_tokenize(xi.lower()) for xi in x]
-    x_chunked_toks = [to_sentences(tokens, kwargs['min_chunk_length']) for tokens in x_toks]
-
     emotion_drop = kwargs.get("emotion_drop")
-    assert emotion_drop in EMOTION_DROP_VERSIONS
-
     if emotion_drop == "v1sent":
         print("Loading emotionally charged words...", end=' ')
         emotional_words = load_emotional_words()
@@ -354,7 +349,13 @@ def load_features_2(**kwargs):
         print("Dropping emotionally neutral sentences...", end=' ')
         x = emotionally_neutral_drop(x, emotional_words)
         print("DONE")
-    elif emotion_drop == "v2chunk":
+
+    x_toks = [word_tokenize(xi.lower()) for xi in x]
+    x_chunked_toks = [to_sentences(tokens, kwargs['min_chunk_length']) for tokens in x_toks]
+
+    assert emotion_drop in EMOTION_DROP_VERSIONS
+
+    if emotion_drop == "v2chunk":
         print("Loading emotionally charged words...", end=' ')
         emotional_words = load_emotional_words()
         print("DONE")
