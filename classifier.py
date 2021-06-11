@@ -10,6 +10,9 @@ import rnn
 from dataset import TRAITS
 from rnn import LSTM
 
+import os
+import pickle
+
 
 class TraitClassifier(ABC):
     """
@@ -97,6 +100,40 @@ class CompoundClassifier:
             preds[:, i] = clf_preds.flatten()
             true[:, i] = clf_true.flatten()
         return preds, true
+
+    def save(self, name):
+        os.mkdir(f"./persist/{name}/")
+        for i, clf in enumerate(self.clfs):
+            if isinstance(clf, SVMClassifier):
+                f = open(f"./persist/{name}/{i}-{TRAITS[i]}-{clf.in_dim}.svm", 'wb')
+                s = pickle.dumps(clf.svm)
+                f.write(s)
+                f.close()
+            elif isinstance(clf, FCClassifier):
+                torch.save(clf.model.state_dict(), f"./persist/{name}/{i}-{TRAITS[i]}-{','.join([str(d) for d in clf.model.dims])}.fc")
+            else:
+                raise ValueError(f"Save not implemented for classifier {clf}")
+
+    def load(self, name, **kwargs):
+        self.clfs = []
+        for i, file in enumerate(sorted(os.listdir(f"./persist/{name}/"))):
+            if file.endswith(".fc"):
+                dims = [int(d) for d in file[:-3].split('-')[2].split(',')]
+                kwargs['neurons_per_layer'] = dims
+                clf = FCClassifier(i, **kwargs)
+
+                clf.model.load_state_dict(torch.load(f"./persist/{name}/{file}"))
+                self.clfs.append(clf)
+            elif file.endswith(".svm"):
+                kwargs['in_dim'] = int(file[:-4].split('-')[2])
+                clf = SVMClassifier(i, **kwargs)
+
+                f = open(f"./persist/{name}/{file}", 'rb')
+                svm = pickle.loads(f.read())
+                f.close()
+
+                clf.svm = svm
+                self.clfs.append(clf)
 
     def __str__(self):
         return 'Compound Classifier:\n' + '\n'.join(['\t' + str(c) for c in self.clfs])

@@ -46,7 +46,7 @@ def split_dataset(x, y, test_ratio=0.2, valid_ratio=0.2):
              tuple(tuple(list[string],torch.tensor))
     """
     shuffle_indices = torch.randperm(y.shape[0])
-    _, x = zip(*sorted(zip(shuffle_indices, x)))
+    x = [x[i] for i in shuffle_indices]
     y = y[shuffle_indices]
 
     n = len(x)

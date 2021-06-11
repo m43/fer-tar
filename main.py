@@ -34,6 +34,7 @@ if __name__ == '__main__':
 
     use_lstm = False
     augmented = False
+    save = True
 
     if use_lstm:
         # ~~~~ LSTM setup ~~~~ #
@@ -112,24 +113,24 @@ if __name__ == '__main__':
             'valid_ratio': val_ratio, 'test_ratio': test_ratio,
             'device': device,
             'wiki': True,
-            'w2v_limit': 2500000
+            'w2v_limit': 2800000
         }
-        ext_hooks = (BOWExtractor,)
+        ext_hooks = (BOWExtractor, W2VExtractor, CapitalizationExtractor, InterpunctionExtractor,
+                     RepeatingLettersExtractor, WordCountExtractor)
         train, valid, trainval, test = load_features(ext_hooks, **extract_cfg)
         in_dim = len(train[0][0])
         train, valid, trainval, test = wrap_datasets(batch_size, None, train, valid, trainval, test)
 
-        fc_init = {"neurons_per_layer": [in_dim, 100, 1], "activation_module": torch.nn.ReLU, "device": device}
-        svm_init = {"c": 1, "gamma": "auto", "decision_function_shape": "ovo", "kernel": "rbf", "in_dim": in_dim}
-
         clf_hook = lambda: CompoundClassifier([
-            (FCClassifier, fc_init), (FCClassifier, fc_init),
-            (FCClassifier, fc_init), (FCClassifier, fc_init),
-            (FCClassifier, fc_init)
+            (SVMClassifier, {'c': 1000.0, 'gamma': 0.001, 'kernel': 'rbf', 'decision_function_shape': 'ovo', 'in_dim': in_dim}),
+            (FCClassifier, {'neurons_per_layer': [in_dim, 50, 1], 'activation_module': torch.nn.ReLU, 'device': device}),
+            (SVMClassifier, {'c': 100.0, 'gamma': 1.0, 'kernel': 'rbf', 'decision_function_shape': 'ovo', 'in_dim': in_dim}),
+            (FCClassifier, {'neurons_per_layer': [in_dim, 30, 1], 'activation_module': torch.nn.ReLU, 'device': device}),
+            (FCClassifier, {'neurons_per_layer': [in_dim, 30, 1], 'activation_module': torch.nn.ReLU, 'device': device})
         ])
-        clf_short_name = "FC-FC-FC-FC-FC(BOW)"
+        clf_short_name = "SVM-FC-SVM-FC-FC(BOW,W2V,CUSTOM)"
 
-    train_args = {"epochs": 50, "lr": 1e-4, "wd": 1e-5, "es_patience": 5, "es_epsilon": 1e-7, "es_maxiter": 30,
+    train_args = {"epochs": 100, "lr": 1e-4, "wd": 2e-4, "es_patience": 5, "es_epsilon": 1e-7, "es_maxiter": 5,
                   "device": device, "debug_print": True}
 
     data_loaders = (train, valid, trainval, test)
@@ -164,6 +165,9 @@ if __name__ == '__main__':
                 r = results[subset_name][trait_name][metric_name]
                 mean, std = np.mean(np.array(r, np.float64)), np.std(np.array(r, np.float64))
                 results[subset_name][trait_name][metric_name] = (mean, std)
+
+    if save:
+        clf.save(clf_short_name)
 
     print("Results collected")
     print()

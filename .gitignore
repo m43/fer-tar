@@ -2,11 +2,13 @@
 ############### CUSTOM ################
 #######################################
 
-dataset/essays*.csv
+dataset/*.csv
 glove_vecs/*
 saved/*
 sentences/*
 sent2vec/*
+emotions/*
+persist/*
 imgs
 saved
 tmp
