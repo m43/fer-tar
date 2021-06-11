@@ -169,11 +169,13 @@ def load_features(extractor_hooks, x=None, y=None, **kwargs):
 
 
 def demo():
-    utils.setup_torch_reproducibility(42)
+    seed = 42
+    utils.setup_torch_reproducibility(seed)
+    np.random.seed(seed)
     ext_hooks = (BOWExtractor, W2VExtractor, CapitalizationExtractor, InterpunctionExtractor,
                  RepeatingLettersExtractor, WordCountExtractor)
-    trnx, trny = load_dataset("dataset/essays.csv")
-    our_loader = load_features(ext_hooks, trnx, trny, test_ratio=0.2, valid_ratio=0.2, w2v_limit=500000)
+    x, y = load_dataset("dataset/essays.csv")
+    our_loader = load_features(ext_hooks, x, y, test_ratio=0.2, valid_ratio=0.2, w2v_limit=500000)
 
     kwargs = {
         'c': 1, 'gamma': 'auto', 'decision_function_shape': 'ovo', 'kernel': 'rbf',

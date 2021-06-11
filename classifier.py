@@ -110,6 +110,7 @@ class CompoundClassifier:
                 f.write(s)
                 f.close()
             elif isinstance(clf, FCClassifier):
+                clf.model.to(device=torch.device('cpu'))
                 torch.save(clf.model.state_dict(), f"./persist/{name}/{i}-{TRAITS[i]}-{','.join([str(d) for d in clf.model.dims])}.fc")
             else:
                 raise ValueError(f"Save not implemented for classifier {clf}")
@@ -123,6 +124,7 @@ class CompoundClassifier:
                 clf = FCClassifier(i, **kwargs)
 
                 clf.model.load_state_dict(torch.load(f"./persist/{name}/{file}"))
+                clf.model.to(device=kwargs['device'])
                 self.clfs.append(clf)
             elif file.endswith(".svm"):
                 kwargs['in_dim'] = int(file[:-4].split('-')[2])

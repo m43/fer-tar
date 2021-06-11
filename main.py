@@ -8,6 +8,7 @@ from eval import eval
 from extractor import *
 from rnn_dataset import load_rnn_features, load_embeddings, pad_collate_fn, load_features_2
 from utils import setup_torch_reproducibility, setup_torch_device, project_path, get_str_formatted_time, ensure_dir
+import numpy as np
 
 
 def welcome():
@@ -30,6 +31,7 @@ if __name__ == '__main__':
     # ~~~~ Setup ~~~~ #
     device = setup_torch_device()
     setup_torch_reproducibility(seed)
+    np.random.seed(seed)
     batch_size = 16
 
     use_lstm = False
@@ -113,7 +115,7 @@ if __name__ == '__main__':
             'valid_ratio': val_ratio, 'test_ratio': test_ratio,
             'device': device,
             'wiki': True,
-            'w2v_limit': 2800000
+            'w2v_limit': None
         }
         ext_hooks = (BOWExtractor, W2VExtractor, CapitalizationExtractor, InterpunctionExtractor,
                      RepeatingLettersExtractor, WordCountExtractor)
