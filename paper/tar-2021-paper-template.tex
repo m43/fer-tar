@@ -1,0 +1,237 @@
+% Paper template for TAR 2021
+% (C) 2014 Jan Šnajder, Goran Glavaš, Domagoj Alagić, Mladen Karan
+% TakeLab, FER
+
+\documentclass[10pt, a4paper]{article}
+
+\usepackage{tar2021}
+
+\usepackage[utf8]{inputenc}
+\usepackage[pdftex]{graphicx}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{booktabs}
+\usepackage{graphicx}
+
+\usepackage{booktabs}
+\usepackage{graphicx}
+
+
+\title{Essays are a Fickle Thing}
+
+\name{Lucija Arambašić, Miroslav Bićanić, Frano Rajič} 
+
+\address{
+University of Zagreb, Faculty of Electrical Engineering and Computing\\
+Unska 3, 10000 Zagreb, Croatia\\ 
+\texttt{\{Lucija.Arambasic,Miroslav.Bicanic,Frano.Rajic\}@fer.hr}\\
+}
+          
+         
+\abstract{ 
+Automatic classification of a person's personality based on a piece of text written by that person is an inherently difficult task, but its difficulty could increase depending on the dataset used. In this work, we explore the classification performance of many different machine learning models with various feature combinations when the dataset consists of stream-of-consciousness essays written by students. Despite achieving very good performance, we argue that such a dataset may not be ideal for personality trait classification.  
+}
+
+\begin{document}
+
+\maketitleabstract
+
+\section{Introduction}
+ Personality is defined as the pattern of thoughts, feelings and behaviour specific to each individual. Personality is often characterized by using different personality traits. One of the most famous ways of describing personality is the Big Five model, which defines five fundamental personality traits: extroversion (EXT), neuroticism (NEU), agreeableness (AGR), conscientiousness (CON) and openness to experience (OPN).
+ 
+ Automatic personality assessment from text has numerous applications, ranging from job interviews to author profiling. Because of this, there was a need for an appropriate dataset. Social network platforms are a popular source for such data since posts on them often contain people's opinions and feelings. \citet{fb_big5} built such a dataset using Facebook posts, while \citet{pandora} built their dataset using posts from Reddit. One popular dataset not obtained from social media is the \textit{essays} dataset, in which stream-of-consciousness essays are matched with Big Five gold labeling of their authors.
+ 
+ In this paper, we analyze our attempt to perform personality trait classification of essay authors on the \textit{essays} dataset. We employ several machine learning techniques, including both static and sequence-based models, utilizing various standard and hand-crafted features. Additionally, we experiment with data augmentation. Finally, we bring into question the quality and applicability of the \textit{essays} dataset for personality trait classification.
+
+\section{Related Work}
+Some of the previous work regarding personality trait classification from text was done by the authors of the \textit{essays} dataset. They extracted Linguistic Inquiry and Word Count (LIWC) features and used them to determine the link between the written essay and the authors Big Five personality traits \citep{essays}. 
+
+Similarly to us, \citet{pizzolli} trained their models on the \textit{essays} dataset, but then used the model to classify the personality traits of characters in Shakespearean plays. It is important to note that this task does not have gold labels, so the performance was evaluated manually and subjectively.
+
+More recent work on personality trait classification using the \textit{essays} dataset is done in \citep{majumder}. Their method consisted of data preprocessing and filtering, feature extraction, and finally classification. Similarly to us, they used \textit{word2vec} embeddings to get vector representations of words and essays. Unlike us, they used a deep CNN for classification. To our knowledge, the results they achieved (displayed in Table~\ref{tab:big-ass-table-acc}) represent state-of-the-art performance on this dataset.
+
+
+\section{Essays Dataset}
+\label{sec-dataset}
+As we mentioned earlier, we used the \textit{essays} dataset, which is the result of research by \citet{essays}. It consists of 2467 \textit{stream-of-consciousness} essays written by 34 psychology students between 1993 and 1996 \citep{tighe-2016}. Each essay is accompanied with five binary labels, one for each of the Big5 personality traits. Specifically, each entry in the dataset is in the format \texttt{author\_id, essay, ext, neu, agr, con, opn}, where the binary labels for traits are represented with \texttt{y} or \texttt{n}.
+
+Trait distribution in the dataset is shown in Table~\ref{tab:label-distros}. The values in the first row are the absolute numbers of essays with a positive label for the trait in that column, while the ratio of such essays in the dataset is given in the second row. A more detailed statistical analysis of the traits can be found in \citep{essays} and \citep{ma2020}.
+
+The essays themselves come in a lot of shapes and sizes: the minimal number of words and sentences in an essay is 39 and 1, while the maximal numbers are 324 and 2964, respectively. The average number of words and sentences is 742.4 and 48.6. While a diverse dataset is generally desirable, such drastic differences in length can pose a problem, especially for models such as LSTMs. Furthermore, many examples are incomplete in some way: the essay with 39 words actually abruptly ends mid-word, while the essay with a single sentence doesn't contain any interpunction.
+
+\begin{table}
+\caption{Trait distribution in the \textit{essays} dataset.}
+\label{tab:label-distros}
+\begin{center}
+\begin{tabular}{ccccc}
+\toprule
+EXT & NEU & AGR & CON & OPN \\ 
+\midrule
+1276 & 1233 & 1310 & 1253 & 1271 \\
+51.7\% & 49.9\% & 53.1\% & 50.79\% & 51.52\% \\
+\bottomrule
+\end{tabular}
+\end{center}
+\end{table}
+%[1,324] SENTS AVG(48,63), TOTAL 119984%
+%[39,2964] SENTS AVG(742,4), TOTAL 1831499%
+
+\section{Our Approach}
+Our goal was to design a system that would facilitate experimentation so that we could easily try different models using different features. The models we implemented can roughly be categorized into three groups: (1) true baselines, (2) static models, (3) and sequence-based models. Each group has a different set of features at its disposal. All models simplify the multilabel classification task by separating it into five independent binary classification problems. 
+
+\subsection{Data Preprocessing}
+As part of the preprocessing step, we discard the \texttt{author\_id} field and convert the \texttt{y/n} labels into numerical \texttt{1/0} labels. Then we perform sentence- and word-level tokenization on lowercased essays. At this point, every example contains three views of an essay: (1) a raw essay, (2) a list of sentences in the essay, (3) a list of words in the essay. Tokenization is performed using the \textit{punkt} tokenizer from the NLTK %\footnote{\texttt{https://www.nltk.org/}}
+framework. Finally, the dataset is split into standard train/valid/test subsets with a 60/20/20 ratio, respectively.
+
+\subsection{Feature Extractors}
+\label{ssec-featex}
+A feature extractor is in charge of converting a dataset of essays into a dataset of fixed-size vector representations, to be used by static models. Any and all extractor parameters are initialized based on the train split of the dataset to avoid data leakage. Initialized extractors are then used to extract features from all three splits of the dataset. 
+
+To make extraction flexible and robust, the extraction method receives all three views of the essay. For example, our custom   capitalization extractor requires raw essays in order to detect capitalized letters, while a \textit{word2vec} extractor requires a list of words in the essay. All the implemented extractors are shown in Table~\ref{tab:extractors}.
+
+\begin{table*}
+\caption{Feature extractors used for static models.}
+\label{tab:extractors}
+\begin{center}
+\resizebox{\textwidth}{!}{
+\begin{tabular}{llc}
+\toprule
+Extractor & Semantics & Vector dimension \\
+\midrule
+Capitalization & Number of uppercase letters; normalized by sentence count & $1$ \\
+WordCount & Number of words; normalized using mean and SD of word counts in the train split & $1$ \\
+Interpunction & Number of periods, exclamation and question marks; normalized by sentence count & $3$ \\
+RepeatingLetters & Number of letters that were repeated 3 or more times & $1$ \\
+TF-IDF & TF-IDF vectors; vocabulary V built only on train set & $|V|$ \\
+W2V & Averaged vector representations of words in the essay & $300$ \\
+S2V & Averaged vector representations of sentences in the essay & $600$ - $700$ \\
+\bottomrule
+\end{tabular}
+}
+\end{center}
+\end{table*}
+
+\subsection{True Baselines}
+True baselines consist of two rudimentary models which don't rely on any of the features, nor the essays themselves. The first baseline is a dataset-agnostic random classifier (RC), and the second one is a most common class classifier (MCC) which classifies all examples with the majority label for each of the traits, based on the distribution in the train split.
+
+\subsection{Static Models}
+Static models refer to classifiers whose input is a fixed-size vector representation of an essay. This group consists of three classifiers: (1) a fully connected neural network (FC), (2) a support vector machine (SVM), (3) and a naive Bayes SVM (NBSVM). 
+
+We implemented the FC model using the PyTorch %\footnote{\texttt{https://pytorch.org/}}
+framework, and the SVM implementation is taken from scikit-learn%\footnote{\texttt{https://scikit-learn.org/}}
+. Both of these models utilize the features generated by feature extractors. On the other hand, we used a pre-built NBSVM implementation\footnote{\texttt{https://github.com/mesnilgr/nbsvm/}} \citep{nbsvm} designed to work exclusively with bag-of-words features.
+
+\subsection{Sequence-Based Models}
+Sequence-based models refer to models which take into account the sequential nature of essays - each essay is a sequence of words or sentences. One of the most popular models for sequential data is an LSTM cell, which we implemented using PyTorch.
+
+We tried training LSTMs with sequences of words as well as sentences. In both cases, the elements of the sequence first had to be converted to their corresponding vector representations. Since the inputs to sequence-based models do not have a fixed dimension, we couldn't use the feature extractors as described in Section~\ref{ssec-featex}. 
+
+Instead, when working with word sequences, we used Google's 300-dimensional embeddings obtained on the Google News corpus. The embeddings were loaded and processed using the \textit{gensim}\footnote{\texttt{https://radimrehurek.com/gensim/}} library. When working with sentence sequences, we used two different pre-trained word embeddings with a larger dimensionality \citep{sent2vec}: 600-dimensional \textit{sent2vec-wiki-unigrams} obtained on English Wikipedia and 700-dimensional \textit{sent2vec-toronto-books} obtained on  BookCorpus. The word embeddings were combined into sentence embeddings using the \textit{epfml/sent2vec}\footnote{\texttt{https://github.com/epfml/sent2vec}} library.
+
+\subsection{Data Augmentation}
+\label{sec:chunk}
+It is known that LSTMs (and recurrent neural networks in general) struggle with sequences longer than a few dozen words. As stated in Section~\ref{sec-dataset}, an average essay contains over 700 words and around 50 sentences. This means that even the average essay is far too long to be adequately processed by an LSTM. 
+
+An additional problem for LSTMs is the great discrepancy in essay lengths. Namely, when the dataset is being batched, every instance in the batch is zero-padded to match the length of the longest instance. A big difference in length can result in some examples having more nil-vectors than actual useful information.
+
+To address these issues, as well as the relatively small size of the dataset, we split each essay into several chunks, with each chunk having a minimum of $C$ words ($C$ is a hyperparameter). Splitting was implemented to only occur on the position of an interpunction symbol (\texttt{.,!?}). Each chunk was assigned the same labels as the essay from which it was taken. This resulted in a dataset of more than 40 thousand examples, the vast majority of which are similar in length.
+
+Because the essays are already scarce with emotion, many of the examples generated by chunking were completely void of emotionally charged words. Furthermore, the fewer words there are in a chunk, the greater the chance that the dataset already contains a very similar chunk. This can lead to contradictory examples if the two chunks come from essays with different trait labels, thus making the training process even more difficult.
+
+A possible solution for the described problem was found in \citep{majumder}: removing every emotionally void sentence from every essay. A sentence is considered emotionally void if it has no emotionally charged words. The emotional charge of a word is determined by comparing the word against a known set of emotionally charged words - in this case the NRC Emotion Lexicon\footnote{\texttt{http://saifmohammad.com/WebPages/}} \citep{emoticon}. We expanded on this idea and implemented two different variants of filtering: (1) removing sentences from raw essays, and then chunking the essays; (2) chunking the essays, and then removing emotionally void chunks. The second approach is motivated by the desire to remove useless and problematic examples from the generated dataset. Emotional dropping improved the performance of LSTM cells, with the second variant bringing greater benefits.
+
+\section{Results}
+As previously stated, we performed all model training and evaluation on the \textit{essays} dataset. The evaluation results are shown in Table~\ref{tab:big-ass-table-acc} and Table~\ref{tab:big-ass-table-f1}. The tables show accuracies and F1 measures of the state-of-the-art model from \citet{majumder}, the MCC baseline, and most of the models with which we experimented.
+
+We ran various combinations of features and models, but displayed only the best ones. Each of the models was independently trained 10 times. All the metrics from those 10 runs were averaged and their standard deviation was calculated. It is important to note that accuracy is an acceptable performance metric on this dataset because the traits are balanced, as we have shown in Table~\ref{tab:label-distros}. Nonetheless, we also show the achieved F1 scores and their standard deviations. To enable reproducibility we split the dataset once before all the runs, and we set up the same random number generator seed for all our experiments.
+
+It can be seen that our NBSVM models achieve higher accuracy than the state-of-the-art on openness and neuroticism, but it should be noted that \citet{majumder} evaluated their results using cross-validation, and we only split the dataset once, creating train/valid/test subsets.
+
+
+\begin{table*}
+\caption{Accuracies of models on each of the traits. $\dagger$ NBSVM used uni+bi+tri+quadgrams. $\ddagger$ NBSVM used uni+bigrams. * NBSVM used uni+bi+trigrams.}
+\label{tab:big-ass-table-acc}
+\begin{center}
+\resizebox{\textwidth}{!}{\begin{tabular}{l|ccccc|c}
+\toprule
+Model & OPN [$\% \pm \sigma$] & CON [$ \%\pm\sigma $] & EXT [$ \%\pm\sigma $] & AGR [$ \%\pm\sigma $] & NEU [$ \%\pm\sigma $] & AVG [$ \%\pm\sigma $] \\
+\midrule
+\citep{majumder} & $57.30$ & $\boldsymbol{62.68}$ & $58.09$ & $\boldsymbol{56.71}$ & $59.38$ & $\boldsymbol{58.83}$ \\
+NBSVM & $\boldsymbol{63.08^\dagger}$ & $57.61^\dagger$ & $58.01^\dagger$ & $52.94^\ddagger$ & $\boldsymbol{60.45}^*$ & $58.42$ \\
+MCC & $52.13$ & $51.12$ & $54.36$ & $52.13$ & $49.90$ & $51.93$ \\ \midrule
+SVM-CUSTOM & $51.32$ & $54.77$ & $50.10$ & $53.55$ & $52.54$ & $52.45$ \\
+SVM-BOW & $52.13$ & $51.12$ & $54.36$ & $52.13$ & $49.90$ & $51.93$ \\
+SVM-W2V & $52.13$ & $51.12$ & $54.36$ & $52.13$ & $49.90$ & $51.93$ \\
+SVM-S2V & $52.13$ & $51.12$ & $54.36$ & $52.13$ & $50.51$ & $52.05$ \\
+SVM-CUSTOM,BOW,W2V & $60.45$ & $57.20$ & $\boldsymbol{58.42}$ & $53.14$ & $58.62$ & $57.57$ \\ \midrule
+LSTM & $51.54 \pm 1.49$ & $49.43 \pm 0.45$ & $53.08 \pm 1.42$ & $52.41 \pm 0.94$ & $51.32 \pm 0.98$ & $51.56 \pm 1.06$ \\
+BiLSTM & $51.46 \pm 1.52$ & $49.13 \pm 0.91$ & $52.27 \pm 1.66$ & $52.03 \pm 0.45$ & $50.20 \pm 1.16$ & $51.02 \pm 1.14$ \\ \midrule
+LSTM-CHUNK & $57.93 \pm 1.64$ & $52.37 \pm 2.55$ & $51.40 \pm 3.27$ & $52.11 \pm 0.06$ & $50.20 \pm 0.10$ & $52.80 \pm 1.52$ \\
+LSTM-CHUNK+EMOv1 & $58.48 \pm 2.26$ & $52.84 \pm 1.57$ & $51.99 \pm 1.88$ & $52.09 \pm 0.12$ & $51.78 \pm 3.28$ & $53.44 \pm 1.82$ \\
+LSTM-CHUNK+EMOv2 & $59.59 \pm 1.59$ & $51.83 \pm 0.85$ & $50.97 \pm 2.25$ & $52.27 \pm 0.37$ & $59.43 \pm 2.72$ & $54.82 \pm 1.56$ \\
+BiLSTM-CHUNK+EMOv2 & $58.48 \pm 2.28$ & $51.54 \pm 0.96$ & $51.30 \pm 2.50$ & $52.11 \pm 0.06$ & $52.52 \pm 1.98$ & $53.19 \pm 1.56$ \\ \midrule
+FC-CUSTOM & $51.72 \pm 1.37$ & $51.87 \pm 1.35$ & $50.63 \pm 0.93$ & $52.37 \pm 0.70$ & $52.80 \pm 1.05$ & $51.88 \pm 1.08$ \\
+FC-BOW & $60.93 \pm 0.39$ & $58.42 \pm 0.84$ & $54.24 \pm 0.44$ & $49.68 \pm 0.45$ & $60.00 \pm 0.39$ & $56.65 \pm 0.50$ \\
+FC-W2V & $62.23 \pm 0.56$ & $58.26 \pm 1.01$ & $52.86 \pm 1.38$ & $51.60 \pm 0.23$ & $57.79 \pm 0.33$ & $56.55 \pm 0.70$ \\
+FC-S2V & $60.89 \pm 0.72$ & $58.44 \pm 0.60$ & $55.46 \pm 0.86$ & $52.31 \pm 0.41$ & $57.28 \pm 0.59$ & $56.88 \pm 0.64$ \\
+FC-CUSTOM,BOW,W2V & $62.66 \pm 0.74$ & $58.62 \pm 0.40$ & $54.58 \pm 0.39$ & $52.27 \pm 0.31$ & $59.45 \pm 0.40$ & $57.52 \pm 0.45$ \\
+\bottomrule
+\end{tabular}}
+\end{center}
+\end{table*}
+
+
+\begin{table*}
+\caption{F1 scores of models on each of the traits. $\dagger$ NBSVM used uni+bi+tri+quadgrams. $\ddagger$ NBSVM used uni+bigrams. * NBSVM used uni+bi+trigrams.}
+\label{tab:big-ass-table-f1}
+\begin{center}
+\resizebox{\textwidth}{!}{\begin{tabular}{l|ccccc|c}
+\toprule
+Model & OPN [$\% \pm \sigma$] & CON [$ \%\pm\sigma $] & EXT [$ \%\pm\sigma $] & AGR [$ \%\pm\sigma $] & NEU [$ \%\pm\sigma $] & AVG [$ \%\pm\sigma $] \\
+\midrule
+\citep{majumder} & n/a & n/a & n/a & n/a & n/a & n/a \\
+NBSVM & $68.07$ & $61.65$ & $64.74$ & $60.81$ & $62.57$ & $63.57$ \\
+MCC & $\boldsymbol{68.53}$ & $67.65$ & $\boldsymbol{70.43}$ & $\boldsymbol{68.53}$ & nan & $\boldsymbol{68.79}$ \\ \midrule
+SVM-CUSTOM & $58.76$ & $66.17$ & $50.40$ & $67.39$ & $44.29$ & $57.40$ \\
+SVM-BOW & $\boldsymbol{68.53}$ & $67.65$ & $\boldsymbol{70.43}$ & $\boldsymbol{68.53}$ & nan & $\boldsymbol{68.79}$ \\
+SVM-W2V & $\boldsymbol{68.53}$ & $67.65$ & $\boldsymbol{70.43}$ & $\boldsymbol{68.53}$ & nan & $\boldsymbol{68.79}$ \\
+SVM-S2V & $\boldsymbol{68.53}$ & $67.65$ & $\boldsymbol{70.43}$ & $\boldsymbol{68.53}$ & $7.58$ & $56.55$ \\
+SVM-CUSTOM+BOW+W2V & $62.14$ & $58.22$ & $61.54$ & $57.46$ & $59.20$ & $59.71$ \\ \midrule
+LSTM & $58.89 \pm 11.62$ & $62.49 \pm 1.91$ & $58.95 \pm 10.51$ & $64.23 \pm 1.34$ & $52.72 \pm 7.39$ & $59.46 \pm 6.55$ \\
+BiLSTM & $59.14 \pm 9.93$ & $61.09 \pm 1.75$ & $55.48 \pm 13.24$ & $64.90 \pm 3.62$ & $45.98 \pm 14.81$ & $57.31 \pm 8.67$ \\ \midrule
+LSTM+CHUNK & $59.57 \pm 7.11$ & $nan \pm nan$ & $53.60 \pm 11.75$ & $68.52 \pm 0.05$ & $\boldsymbol{66.80 \pm 0.05}$ & $62.12 \pm 4.74$ \\
+LSTM+CHUNK+EMOv1 & $62.06 \pm 5.86$ & $65.80 \pm 3.01$ & $56.02 \pm 6.94$ & $68.48 \pm 0.09$ & $64.57 \pm 5.37$ & $63.39 \pm 4.25$ \\
+LSTM+CHUNK+EMOv2 & $61.91 \pm 6.89$ & $\boldsymbol{67.66 \pm 0.17}$ & $54.87 \pm 9.07$ & $68.38 \pm 0.19$ & $59.24 \pm 9.54$ & $62.41 \pm 5.17$ \\
+BiLSTM-CHUNK+EMOv2 & $58.86 \pm 12.25$ & $66.29 \pm 2.83$ & $54.98 \pm 13.55$ & $68.52 \pm 0.05$ & $55.41 \pm 21.54$ & $60.81 \pm 10.04$ \\ \midrule
+FC-CUSTOM & $58.34 \pm 1.92$ & $60.48 \pm 3.93$ & $56.30 \pm 1.96$ & $68.01 \pm 0.75$ & $47.82 \pm 7.19$ & $58.19 \pm 3.15$ \\
+FC-BOW & $62.40 \pm 0.77$ & $60.61 \pm 1.53$ & $58.09 \pm 0.85$ & $57.08 \pm 0.61$ & $60.38 \pm 1.24$ & $59.71 \pm 1.00$ \\
+FC-W2V & $63.44 \pm 2.27$ & $61.56 \pm 1.23$ & $53.70 \pm 8.01$ & $57.98 \pm 0.55$ & $53.30 \pm 1.63$ & $58.00 \pm 2.74$ \\
+FC-S2V & $62.33 \pm 1.06$ & $60.64 \pm 2.13$ & $59.67 \pm 2.87$ & $57.20 \pm 1.47$ & $57.68 \pm 2.08$ & $59.50 \pm 1.92$ \\
+FC-CUSTOM+BOW+W2V & $63.62 \pm 0.71$ & $59.81 \pm 0.50$ & $60.15 \pm 0.88$ & $66.77 \pm 0.47$ & $57.73 \pm 0.80$ & $61.61 \pm 0.67$ \\
+\bottomrule
+\end{tabular}}
+\end{center}
+\end{table*}
+
+\section{Dataset Commentary}
+Human personality is very complex in its nature and determining the Big Five traits solely from text is a very challenging task. We feel that the \textit{essays} dataset makes the problem even harder, primarily due to the stream-of-consciousness nature of the essays. Such essays exhibit the thoughts of the person writing them, but such thoughts may not reveal enough to determine the author's personality traits, as they often lack emotional expression. This is backed by the fact that dropping emotionally neutral sentences improved performance.
+
+Furthermore, the author's thoughts are often influenced by their surroundings. If the author is not trained in controlling and structuring their thoughts for the essay, which is likely the case with most students that wrote them, there is a lot of noise in the text. For example, some essays are just describing the room the author was in at the time of writing. Because of this, noise some models have difficulty grasping the essence of the author's traits. Another downside of the noise is that the essays become unnecessarily long, which is a huge problem for models like the LSTM cell. We addressed the problem of lengthy essays by using essay chunking, previously described in Section ~\ref{sec:chunk} 
+
+In contrast to essays, posts from social media like Twitter or Facebook offer a deeper insight into people's perspectives and attitudes. The nature of social media posts is such that authors often express their opinions in an emotional manner, with emotions ranging from anger and frustration all the way to joy and excitement. Moreover, such posts are often shorter, and in the case of Twitter they even have an upper bound. This means the information present in them could be acquired faster and easier. For these reasons, we believe that social media datasets are better suited for the task of personality trait classification.
+
+\section{Conclusion}
+The \textit{essays} dataset proved to be a challenging dataset for the task of personality trait classification. We managed to obtain very good results with our models, with some coming close to state-of-the-art models. In spite of that, we still believe that this dataset has shortcomings and makes the task more difficult than it could have been.
+
+In future work, we would use cross-validation to better evaluate our models, and to be able to directly compare them to the state-of-the-art. Furthermore, we would explore the effects of emotionally charged words in essays to a greater extent. Finally, it could be informative to compare the performance of one model on several different datasets.
+\newpage
+
+\newpage
+
+\newpage
+\bibliographystyle{tar2021}
+\bibliography{tar2021} 
+
+\end{document}
+
