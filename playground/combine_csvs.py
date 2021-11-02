@@ -25,16 +25,16 @@ for path, name in csv_file_tuples:
                 if i == 0:
                     results.append(row[0:4] + ["ae"])
                 else:
-                    results.append(row[0:4] + ["mean"])
-                    results.append(row[0:4] + ["std"])
+                    results.append([row[0] + "-mean"] + row[1:4] + ["mean"])
+                    results.append([row[0] + "-std"] + row[1:4] + ["std"])
 
             if i == 0:
                 # Header
                 results[i].append(name.replace(",", ";"))
             else:
                 # Metrics
-                results[2*i-1].append(row[4])
-                results[2*i].append(row[5])
+                results[2 * i - 1].append(row[4])
+                results[2 * i].append(row[5])
 
             assert len(results[0]) == len(results[i])
 

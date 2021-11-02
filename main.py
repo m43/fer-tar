@@ -128,7 +128,7 @@ def main(args):
 
         clf_hook = lambda: HackyCompoundClassifier([(LSTMClassifier, rnn_init)] * 5)
         run_name_middle = f"LSTM+CHUNK" \
-                          f"{'+EMO' if extract_cfg['emotion_drop'] else ''}" \
+                          f"_emo={extract_cfg['emotion_drop']}" \
                           f"_rnn_layers={rnn_init['rnn_layers']}" \
                           f"_hLSTM={rnn_init['rnn_dims'][1]}" \
                           f"_hFC={rnn_init['fc_hid_dim']}" \
@@ -167,7 +167,8 @@ def main(args):
                        "device": device}
             clf_hook = lambda: CompoundClassifier([(FCClassifier, fc_init)] * 5)
             run_name_middle = f"FC" \
-                              f"_npl=in-{'-'.join([str(h) for h in fc_init['neurons_per_layer']])}-1"
+                              f"_npl=in-{'-'.join([str(h) for h in fc_init['neurons_per_layer']])}" \
+                              f"__{run_name_middle}"
 
         if model == "svm":
             svm_init = {"c": args.svm_c, "gamma": args.svm_gamma, "decision_function_shape": "ovo",
@@ -309,6 +310,7 @@ if __name__ == '__main__':
     args = p.parse_args()
     if args.svm_gamma != "auto":
         args.svm_gamma = float(args.svm_gamma)
+    print(args)
     main(args)
 
 """
@@ -356,6 +358,7 @@ python -m main --model mcc --n_runs 1
 !python -m main --model fc --epochs 100 --lr 1e-4 --wd 5e-5 --bs 32 --n_runs 10 --espat 15 --fcsvm_hook_bow --fc_npl 100       2>&1 | tee -a imgs/logs/fc_11.txt
 !python -m main --model fc --epochs 100 --lr 1e-4 --wd 5e-5 --bs 32 --n_runs 10 --espat 15 --fcsvm_hook_custom --fc_npl 100       2>&1 | tee -a imgs/logs/fc_12.txt
 !python -m main --model fc --epochs 100 --lr 1e-4 --wd 1e-3 --bs 32 --n_runs 10 --espat 15 --fcsvm_hook_custom --fcsvm_hook_bow --fcsvm_hook_w2v --fc_npl 100       2>&1 | tee -a imgs/logs/fc_13.txt
+!python -m main --model fc --epochs 100 --lr 1e-4 --wd 5e-5 --bs 32 --n_runs 10 --espat 15 --fcsvm_hook_w2v --fc_npl 100       2>&1 | tee -a imgs/logs/fc_12.txt
 
 #SVM
 python -m main --model svm --n_runs 1 --fcsvm_hook_custom --fcsvm_hook_bow --fcsvm_hook_w2v --svm_c 1 --svm_gamma auto --svm_kernel rbf           2>&1 | tee -a imgs/logs/svm_1.txt
